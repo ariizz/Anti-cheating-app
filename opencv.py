@@ -35,6 +35,8 @@ face_center_history = deque(maxlen=10)
 face_angle_history = deque(maxlen=10)
 eye_detection_history = deque(maxlen=10)
 distraction_confidence = 0.0
+no_face_start_time = None
+countdown_value = 10
 
 print("Press 'q' to quit the application.")
 
@@ -226,6 +228,10 @@ while True:
         faces = sorted(faces, key=lambda x: x[2] * x[3], reverse=True)
         x, y, w, h = faces[0]
         face_detected = True
+        
+        # Reset countdown when face is detected
+        no_face_start_time = None
+        countdown_value = 10
 
         # Check if face is large enough
         if w >= MIN_FACE_SIZE and h >= MIN_FACE_SIZE:
@@ -383,6 +389,57 @@ while True:
         else:
             alert_active = False
         face_center_history.clear()
+        
+        # Initialize countdown timer when face is first not detected
+        if no_face_start_time is None:
+            no_face_start_time = time.time()
+            countdown_value = 10
+        
+        # Update countdown based on elapsed time
+        elapsed_time = time.time() - no_face_start_time
+        countdown_value = max(0, int(11 - elapsed_time))
+        
+        # Display "No face detected" message at top left (blinking)
+        no_face_text = "No face detected"
+        font = cv2.FONT_HERSHEY_SIMPLEX  # Arial style font
+        font_scale = 0.48  # Size 12
+        thickness = 2
+        color = (0, 0, 255)  # Red color in BGR format
+        
+        # Get text size for positioning
+        (text_width, text_height), baseline = cv2.getTextSize(no_face_text, font, font_scale, thickness)
+        
+        # Calculate position for top left
+        text_x = 20  # Left margin
+        text_y = 30  # Top position with margin
+        
+        # Blinking effect (toggle every 0.5 seconds)
+        current_time = time.time()
+        blink_on = int(current_time * 2) % 2 == 0
+        
+        # Draw the text only when blinking is on
+        if blink_on:
+            cv2.putText(frame, no_face_text, (text_x, text_y), 
+                       font, font_scale, color, thickness)
+        
+        # Display countdown timer at top right
+        countdown_text = f"return in: {countdown_value}"
+        countdown_font = cv2.FONT_HERSHEY_SIMPLEX  # Arial style font
+        countdown_font_scale = 0.48  # Size 12
+        countdown_thickness = 2
+        countdown_color = (0, 0, 255)  # Red color in BGR format
+        
+        # Get countdown text size
+        (countdown_width, countdown_height), countdown_baseline = cv2.getTextSize(
+            countdown_text, countdown_font, countdown_font_scale, countdown_thickness)
+        
+        # Calculate position for top right
+        countdown_x = frame_w - countdown_width - 20  # Right aligned with margin
+        countdown_y = 30  # Top position with margin
+        
+        # Draw the countdown text
+        cv2.putText(frame, countdown_text, (countdown_x, countdown_y), 
+                   countdown_font, countdown_font_scale, countdown_color, countdown_thickness)
 
     # Display the frame
     cv2.imshow('DRISHTI', frame)
