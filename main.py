@@ -1,11 +1,34 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.responses import HTMLResponse
+from fastapi.staticfiles import StaticFiles
 from pathlib import Path
+from pydantic import BaseModel
+from typing import Optional
 import json
+import time
 
 app = FastAPI()
 
+class IncidentModel(BaseModel):
+    type: str
+    details: dict = {}
+    timestamp: Optional[str] = None  # We will set this if not provided
+
 LOG_FILE = Path("incidents.log")
+
+@app.post("/active_alert")
+async def receive_alert(incident: IncidentModel):
+    """Receive an alert from the computer vision client."""
+    if not incident.timestamp:
+        # Use current UTC time if not provided, passing it as string
+        incident.timestamp = time.strftime("%Y-%m-%d %H:%M:%S", time.gmtime())
+        
+    # Append to log file
+    entry = incident.dict()
+    with LOG_FILE.open("a", encoding="utf-8") as f:
+        f.write(json.dumps(entry) + "\n")
+    
+    return {"status": "received"}
 
 
 @app.get("/incidents")
@@ -30,464 +53,205 @@ def get_incidents():
 
 @app.get("/", response_class=HTMLResponse)
 def dashboard():
-    """Very simple dashboard that polls /incidents and shows them in a table."""
+    """Professional dashboard that polls /incidents and shows them in a table."""
     html = """
     <!DOCTYPE html>
-    <html>
+    <html lang="en">
     <head>
-      <meta charset="utf-8" />
-      <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-      <title>Exam Proctoring Dashboard</title>
-      <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
-      <style>
-        * {
-          margin: 0;
-          padding: 0;
-          box-sizing: border-box;
-        }
-
-        body {
-          font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-          background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-          min-height: 100vh;
-          padding: 20px;
-          color: #333;
-        }
-
-        .container {
-          max-width: 1400px;
-          margin: 0 auto;
-        }
-
-        .header {
-          background: rgba(255, 255, 255, 0.95);
-          backdrop-filter: blur(10px);
-          border-radius: 20px;
-          padding: 30px 40px;
-          margin-bottom: 30px;
-          box-shadow: 0 10px 40px rgba(0, 0, 0, 0.1);
-          display: flex;
-          justify-content: space-between;
-          align-items: center;
-          flex-wrap: wrap;
-          gap: 20px;
-        }
-
-        .header-content h1 {
-          font-size: 32px;
-          font-weight: 700;
-          background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-          -webkit-background-clip: text;
-          -webkit-text-fill-color: transparent;
-          background-clip: text;
-          margin-bottom: 8px;
-        }
-
-        .header-content p {
-          color: #666;
-          font-size: 15px;
-          font-weight: 400;
-        }
-
-        .stats-container {
-          display: flex;
-          gap: 15px;
-          flex-wrap: wrap;
-        }
-
-        .stat-card {
-          background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-          color: white;
-          padding: 15px 25px;
-          border-radius: 12px;
-          min-width: 150px;
-          text-align: center;
-          box-shadow: 0 4px 15px rgba(102, 126, 234, 0.3);
-        }
-
-        .stat-value {
-          font-size: 28px;
-          font-weight: 700;
-          margin-bottom: 5px;
-        }
-
-        .stat-label {
-          font-size: 12px;
-          opacity: 0.9;
-          text-transform: uppercase;
-          letter-spacing: 0.5px;
-        }
-
-        .dashboard-card {
-          background: rgba(255, 255, 255, 0.95);
-          backdrop-filter: blur(10px);
-          border-radius: 20px;
-          padding: 30px;
-          box-shadow: 0 10px 40px rgba(0, 0, 0, 0.1);
-          overflow: hidden;
-        }
-
-        .card-header {
-          display: flex;
-          justify-content: space-between;
-          align-items: center;
-          margin-bottom: 25px;
-          padding-bottom: 20px;
-          border-bottom: 2px solid #f0f0f0;
-        }
-
-        .card-title {
-          font-size: 24px;
-          font-weight: 600;
-          color: #2d3748;
-        }
-
-        .refresh-indicator {
-          display: flex;
-          align-items: center;
-          gap: 8px;
-          color: #667eea;
-          font-size: 14px;
-          font-weight: 500;
-        }
-
-        .refresh-dot {
-          width: 8px;
-          height: 8px;
-          background: #667eea;
-          border-radius: 50%;
-          animation: pulse 2s infinite;
-        }
-
-        @keyframes pulse {
-          0%, 100% { opacity: 1; transform: scale(1); }
-          50% { opacity: 0.5; transform: scale(1.2); }
-        }
-
-        .table-wrapper {
-          overflow-x: auto;
-          border-radius: 12px;
-        }
-
-        table {
-          width: 100%;
-          border-collapse: separate;
-          border-spacing: 0;
-          background: white;
-        }
-
-        thead {
-          background: linear-gradient(135deg, #f5f7fa 0%, #e8ecf1 100%);
-        }
-
-        th {
-          padding: 18px 20px;
-          text-align: left;
-          font-weight: 600;
-          font-size: 13px;
-          color: #4a5568;
-          text-transform: uppercase;
-          letter-spacing: 0.5px;
-          border-bottom: 2px solid #e2e8f0;
-        }
-
-        th:first-child {
-          border-top-left-radius: 12px;
-        }
-
-        th:last-child {
-          border-top-right-radius: 12px;
-        }
-
-        td {
-          padding: 18px 20px;
-          border-bottom: 1px solid #f0f0f0;
-          font-size: 14px;
-          color: #4a5568;
-        }
-
-        tbody tr {
-          transition: all 0.3s ease;
-          cursor: pointer;
-        }
-
-        tbody tr:hover {
-          background: #f8f9fa;
-          transform: translateX(4px);
-          box-shadow: -4px 0 0 #667eea;
-        }
-
-        tbody tr:last-child td:first-child {
-          border-bottom-left-radius: 12px;
-        }
-
-        tbody tr:last-child td:last-child {
-          border-bottom-right-radius: 12px;
-        }
-
-        .LOOKING_AWAY {
-          background: linear-gradient(90deg, #fff8e1 0%, #fffef5 100%);
-          border-left: 4px solid #ffc107;
-        }
-
-        .FACE_NOT_VISIBLE {
-          background: linear-gradient(90deg, #ffebee 0%, #fff5f6 100%);
-          border-left: 4px solid #dc3545;
-        }
-
-        .badge {
-          display: inline-flex;
-          align-items: center;
-          padding: 6px 14px;
-          border-radius: 20px;
-          font-size: 12px;
-          font-weight: 600;
-          text-transform: uppercase;
-          letter-spacing: 0.5px;
-          box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
-        }
-
-        .badge-looking {
-          background: linear-gradient(135deg, #ffc107 0%, #ff9800 100%);
-          color: #212529;
-        }
-
-        .badge-missing {
-          background: linear-gradient(135deg, #dc3545 0%, #c82333 100%);
-          color: #fff;
-        }
-
-        .time-cell {
-          font-family: 'Courier New', monospace;
-          font-weight: 500;
-          color: #667eea;
-        }
-
-        .details-cell {
-          font-family: 'Courier New', monospace;
-          font-size: 12px;
-          color: #718096;
-          background: #f7fafc;
-          padding: 10px 15px;
-          border-radius: 8px;
-          max-width: 400px;
-          word-break: break-all;
-        }
-
-        .empty-state {
-          text-align: center;
-          padding: 60px 20px;
-          color: #a0aec0;
-        }
-
-        .empty-state-icon {
-          font-size: 64px;
-          margin-bottom: 20px;
-          opacity: 0.5;
-        }
-
-        .empty-state-text {
-          font-size: 18px;
-          font-weight: 500;
-          margin-bottom: 8px;
-        }
-
-        .empty-state-subtext {
-          font-size: 14px;
-          color: #cbd5e0;
-        }
-
-        .loading {
-          text-align: center;
-          padding: 40px;
-          color: #667eea;
-        }
-
-        .spinner {
-          border: 3px solid #f3f3f3;
-          border-top: 3px solid #667eea;
-          border-radius: 50%;
-          width: 40px;
-          height: 40px;
-          animation: spin 1s linear infinite;
-          margin: 0 auto 15px;
-        }
-
-        @keyframes spin {
-          0% { transform: rotate(0deg); }
-          100% { transform: rotate(360deg); }
-        }
-
-        @media (max-width: 768px) {
-          .header {
-            flex-direction: column;
-            text-align: center;
-          }
-
-          .stats-container {
-            justify-content: center;
-          }
-
-          .table-wrapper {
-            overflow-x: scroll;
-          }
-
-          th, td {
-            padding: 12px 15px;
-            font-size: 13px;
-          }
-        }
-
-        .fade-in {
-          animation: fadeIn 0.5s ease-in;
-        }
-
-        @keyframes fadeIn {
-          from { opacity: 0; transform: translateY(10px); }
-          to { opacity: 1; transform: translateY(0); }
-        }
-      </style>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>Incidents Data</title>
+        <script src="https://cdn.tailwindcss.com"></script>
+        <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
+        <style>
+            body { font-family: 'Inter', sans-serif; }
+            .fade-in { animation: fadeIn 0.3s ease-in-out; }
+            @keyframes fadeIn { from { opacity: 0; transform: translateY(5px); } to { opacity: 1; transform: translateY(0); } }
+        </style>
     </head>
-    <body>
-      <div class="container">
-        <div class="header">
-          <div class="header-content">
-            <h1>📊 Exam Proctoring Dashboard</h1>
-            <p>Real-time monitoring of exam incidents and violations</p>
-          </div>
-          <div class="stats-container">
-            <div class="stat-card">
-              <div class="stat-value" id="total-incidents">0</div>
-              <div class="stat-label">Total Incidents</div>
+    <body class="bg-gray-50 text-gray-800 h-screen flex flex-col overflow-hidden">
+        
+        <!-- Header -->
+        <header class="bg-white border-b border-gray-200 px-8 py-4 flex justify-between items-center shadow-sm z-10">
+            <div class="flex items-center gap-3">
+                <div class="h-8 w-8 bg-black rounded-lg flex items-center justify-center">
+                    <span class="text-white font-bold text-lg">I</span>
+                </div>
+                <h1 class="font-semibold text-xl tracking-tight text-gray-900">Incidents Data</h1>
             </div>
-            <div class="stat-card">
-              <div class="stat-value" id="looking-away-count">0</div>
-              <div class="stat-label">Looking Away</div>
+            <div class="flex items-center gap-4">
+                <div class="flex items-center gap-2 text-sm text-gray-500 bg-gray-100 px-3 py-1.5 rounded-full">
+                    <span class="relative flex h-2 w-2">
+                      <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
+                      <span class="relative inline-flex rounded-full h-2 w-2 bg-green-500"></span>
+                    </span>
+                    Live Monitoring
+                </div>
             </div>
-            <div class="stat-card">
-              <div class="stat-value" id="face-missing-count">0</div>
-              <div class="stat-label">Face Missing</div>
-            </div>
-          </div>
-        </div>
+        </header>
 
-        <div class="dashboard-card">
-          <div class="card-header">
-            <h2 class="card-title">📋 Incident Log</h2>
-            <div class="refresh-indicator">
-              <div class="refresh-dot"></div>
-              <span>Auto-refreshing every 2s</span>
-            </div>
-          </div>
+        <!-- Main Content -->
+        <main class="flex-1 flex overflow-hidden">
+            
+            <!-- Sidebar / Stats -->
+            <aside class="w-80 bg-white border-r border-gray-200 flex flex-col p-6 gap-6 overflow-y-auto hidden md:flex">
+                <div>
+                    <h2 class="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-4">Overview</h2>
+                    <div class="grid grid-cols-1 gap-4">
+                        <div class="p-4 rounded-xl border border-gray-100 bg-gray-50">
+                            <div class="text-2xl font-bold text-gray-900" id="total-incidents">0</div>
+                            <div class="text-sm text-gray-500 font-medium">Total Incidents</div>
+                        </div>
+                        <div class="p-4 rounded-xl border border-red-50 bg-red-50/50">
+                            <div class="text-2xl font-bold text-red-600" id="looking-away-count">0</div>
+                            <div class="text-sm text-red-600/70 font-medium">Looking Away</div>
+                        </div>
+                         <div class="p-4 rounded-xl border border-orange-50 bg-orange-50/50">
+                            <div class="text-2xl font-bold text-orange-600" id="lip-count">0</div>
+                            <div class="text-sm text-orange-600/70 font-medium">Lip Movement</div>
+                        </div>
+                        <div class="p-4 rounded-xl border border-gray-100 bg-gray-50">
+                            <div class="text-2xl font-bold text-gray-700" id="face-missing-count">0</div>
+                            <div class="text-sm text-gray-500 font-medium">Face Missing</div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="mt-auto">
+                    <div class="text-xs text-gray-400 text-center">
+                        Last updated: <span id="last-updated">Never</span>
+                    </div>
+                </div>
+            </aside>
 
-          <div class="table-wrapper">
-            <table id="incidents-table">
-              <thead>
-                <tr>
-                  <th>⏰ Time (UTC)</th>
-                  <th>🏷️ Type</th>
-                  <th>📝 Details</th>
-                </tr>
-              </thead>
-              <tbody id="table-body">
-                <tr>
-                  <td colspan="3" class="loading">
-                    <div class="spinner"></div>
-                    <div>Loading incidents...</div>
-                  </td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
-        </div>
-      </div>
+            <!-- Incident Feed -->
+            <section class="flex-1 flex flex-col overflow-hidden bg-gray-50/50">
+                <div class="px-8 py-6 border-b border-gray-200 bg-white/50 backdrop-blur-sm sticky top-0 z-10 flex justify-between items-center">
+                    <h2 class="text-lg font-medium text-gray-900">Incident Log</h2>
+                    <button onclick="loadIncidents()" class="text-sm text-blue-600 hover:text-blue-800 font-medium transition-colors">
+                        Refresh Now
+                    </button>
+                </div>
+                
+                <div class="flex-1 overflow-y-auto px-8 py-6">
+                    <div class="max-w-4xl mx-auto">
+                        <table class="w-full text-left border-separate border-spacing-0">
+                            <thead>
+                                <tr>
+                                    <th class="pb-4 font-medium text-gray-500 text-sm border-b border-gray-200 w-32">Time</th>
+                                    <th class="pb-4 font-medium text-gray-500 text-sm border-b border-gray-200 w-48">Type</th>
+                                    <th class="pb-4 font-medium text-gray-500 text-sm border-b border-gray-200">Details</th>
+                                </tr>
+                            </thead>
+                            <tbody id="table-body" class="text-sm">
+                                <!-- Incidents will be inserted here -->
+                                <tr>
+                                    <td colspan="3" class="py-12 text-center text-gray-400">
+                                        Loading data...
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </section>
+        </main>
 
-      <script>
-        async function loadIncidents() {
-          try {
-            const res = await fetch('/incidents');
-            const data = await res.json();
-            const tbody = document.querySelector('#table-body');
-            
-            // Update statistics
-            const totalIncidents = data.length;
-            const lookingAwayCount = data.filter(inc => inc.type === 'LOOKING_AWAY').length;
-            const faceMissingCount = data.filter(inc => inc.type === 'FACE_NOT_VISIBLE').length;
-            
-            document.getElementById('total-incidents').textContent = totalIncidents;
-            document.getElementById('looking-away-count').textContent = lookingAwayCount;
-            document.getElementById('face-missing-count').textContent = faceMissingCount;
-            
-            // Clear table
-            tbody.innerHTML = '';
-            
-            if (data.length === 0) {
-              tbody.innerHTML = `
-                <tr>
-                  <td colspan="3" class="empty-state">
-                    <div class="empty-state-icon">✅</div>
-                    <div class="empty-state-text">No incidents detected</div>
-                    <div class="empty-state-subtext">All clear! No violations recorded.</div>
-                  </td>
-                </tr>
-              `;
-              return;
+        <script>
+            function formatTime(timeStr) {
+                if (!timeStr) return '-';
+                // Try to parse string to get only H:M:S
+                try {
+                    return timeStr.split(' ')[1]; 
+                } catch(e) { return timeStr; }
             }
-            
-            // Add incidents to table
-            data.forEach((inc, index) => {
-              const tr = document.createElement('tr');
-              tr.className = (inc.type || '') + ' fade-in';
-              tr.style.animationDelay = `${index * 0.05}s`;
 
-              const tdTime = document.createElement('td');
-              const tdType = document.createElement('td');
-              const tdDetails = document.createElement('td');
+            async function loadIncidents() {
+                try {
+                    const res = await fetch('/incidents');
+                    const data = await res.json();
+                    
+                    // Stats
+                    const recentData = data.reverse(); // Show newest first
+                    const total = data.length;
+                    const lookingAway = data.filter(i => i.type === 'LOOKING_AWAY').length;
+                    const faceMissing = data.filter(i => i.type === 'FACE_NOT_VISIBLE').length;
+                    const lipMovement = data.filter(i => i.type === 'LIP_MOVEMENT').length;
+                    
+                    document.getElementById('total-incidents').textContent = total;
+                    document.getElementById('looking-away-count').textContent = lookingAway;
+                    document.getElementById('face-missing-count').textContent = faceMissing;
+                    document.getElementById('lip-count').textContent = lipMovement;
+                    
+                    const now = new Date();
+                    document.getElementById('last-updated').textContent = now.toLocaleTimeString();
 
-              tdTime.textContent = inc.timestamp || 'N/A';
-              tdTime.className = 'time-cell';
+                    const tbody = document.getElementById('table-body');
+                    tbody.innerHTML = '';
 
-              const typeSpan = document.createElement('span');
-              if (inc.type === 'LOOKING_AWAY') {
-                typeSpan.textContent = '👀 Looking Away';
-                typeSpan.className = 'badge badge-looking';
-              } else if (inc.type === 'FACE_NOT_VISIBLE') {
-                typeSpan.textContent = '🚫 Face Not Visible';
-                typeSpan.className = 'badge badge-missing';
-              } else {
-                typeSpan.textContent = inc.type || 'Unknown';
-                typeSpan.className = 'badge';
-              }
-              tdType.appendChild(typeSpan);
+                    if (recentData.length === 0) {
+                        tbody.innerHTML = `
+                            <tr>
+                                <td colspan="3" class="py-20 text-center">
+                                    <div class="inline-flex items-center justify-center w-12 h-12 bg-green-100 rounded-full mb-3">
+                                        <svg class="w-6 h-6 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>
+                                    </div>
+                                    <p class="text-gray-500 font-medium">All clear</p>
+                                    <p class="text-gray-400 text-xs mt-1">No incidents recorded yet.</p>
+                                </td>
+                            </tr>
+                        `;
+                        return;
+                    }
 
-              const detailsText = JSON.stringify(inc.details || {}, null, 2);
-              tdDetails.textContent = detailsText;
-              tdDetails.className = 'details-cell';
+                    recentData.forEach((inc) => {
+                        const tr = document.createElement('tr');
+                        tr.className = 'group hover:bg-white transition-colors fade-in';
+                        
+                        // Type Badge Style
+                        let typeClass = 'bg-gray-100 text-gray-600';
+                        let typeLabel = inc.type;
+                        
+                        if (inc.type === 'LOOKING_AWAY') {
+                            typeClass = 'bg-yellow-100 text-yellow-700 border border-yellow-200';
+                            typeLabel = 'Looking Away';
+                        } else if (inc.type === 'FACE_NOT_VISIBLE') {
+                            typeClass = 'bg-red-100 text-red-700 border border-red-200';
+                            typeLabel = 'Face Missing';
+                        } else if (inc.type === 'LIP_MOVEMENT' || inc.type === 'Lip movement detected') { // Handle both just in case
+                             typeClass = 'bg-orange-100 text-orange-700 border border-orange-200';
+                             typeLabel = 'Lip Movement';
+                        }
 
-              tr.appendChild(tdTime);
-              tr.appendChild(tdType);
-              tr.appendChild(tdDetails);
-              tbody.appendChild(tr);
-            });
-          } catch (e) {
-            console.error('Failed to load incidents', e);
-            const tbody = document.querySelector('#table-body');
-            tbody.innerHTML = `
-              <tr>
-                <td colspan="3" class="empty-state">
-                  <div class="empty-state-icon">⚠️</div>
-                  <div class="empty-state-text">Error loading incidents</div>
-                  <div class="empty-state-subtext">${e.message}</div>
-                </td>
-              </tr>
-            `;
-          }
-        }
+                        // Details Check
+                        let details = inc.details.reason || JSON.stringify(inc.details);
+                        if (details === '{}') details = '';
 
-        // Poll every 2 seconds
-        setInterval(loadIncidents, 2000);
-        loadIncidents();
-      </script>
+                        tr.innerHTML = `
+                            <td class="py-4 border-b border-gray-100 text-gray-500 font-mono text-xs group-hover:text-gray-700">
+                                ${formatTime(inc.timestamp)}
+                            </td>
+                            <td class="py-4 border-b border-gray-100">
+                                <span class="inline-flex items-center px-2.5 py-0.5 rounded-md text-xs font-medium ${typeClass}">
+                                    ${typeLabel}
+                                </span>
+                            </td>
+                            <td class="py-4 border-b border-gray-100 text-gray-600">
+                                ${details}
+                            </td>
+                        `;
+                        tbody.appendChild(tr);
+                    });
+
+                } catch (e) {
+                    console.error("Fetch error", e);
+                }
+            }
+
+            // Auto refresh every 2s
+            setInterval(loadIncidents, 2000);
+            loadIncidents();
+        </script>
     </body>
     </html>
     """

@@ -6,6 +6,7 @@ from collections import deque
 # Load the pre-trained face and eye detection models
 face_cascade = cv2.CascadeClassifier(cv2.data.haarcascades + 'haarcascade_frontalface_default.xml')
 eye_cascade = cv2.CascadeClassifier(cv2.data.haarcascades + 'haarcascade_eye.xml')
+smile_cascade = cv2.CascadeClassifier(cv2.data.haarcascades + 'haarcascade_smile.xml')
 
 # Initialize the webcam (0 is usually the default camera)
 video_capture = cv2.VideoCapture(0)
@@ -25,6 +26,39 @@ EYE_DETECTION_CONFIDENCE = 2  # minimum number of eyes to detect for normal stat
 # Temporal smoothing parameters
 SMOOTHING_WINDOW = 5          # number of frames for smoothing
 CONFIDENCE_THRESHOLD = 0.7    # confidence level for distraction detection
+
+import urllib.request
+import json
+from datetime import datetime
+import threading
+
+# Configuration for Dashboard Connection
+DASHBOARD_URL = "http://127.0.0.1:8000/active_alert"
+
+def send_alert_async(alert_type, reason):
+    """Send alert to dashboard in a separate thread to avoid blocking video processing"""
+    def _send():
+        try:
+            timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            payload = {
+                "type": alert_type,
+                "details": {"reason": reason},
+                "timestamp": timestamp
+            }
+            data = json.dumps(payload).encode('utf-8')
+            req = urllib.request.Request(
+                DASHBOARD_URL, 
+                data=data, 
+                headers={'Content-Type': 'application/json'}
+            )
+            with urllib.request.urlopen(req, timeout=1) as response:
+                pass # Success
+        except Exception as e:
+            # Silently fail if dashboard is down to keep CV running
+            pass
+            
+    # Run in thread
+    threading.Thread(target=_send, daemon=True).start()
 
 # State variables
 look_away_start = None
@@ -241,6 +275,27 @@ while True:
             # Detect eyes in the face region with improved method
             eyes = detect_eyes_in_face(gray, (x, y, w, h))
             
+            # Detect mouth/lips in the lower face
+            # ROI for mouth (lower 40% of face)
+            mouth_roi_y = y + int(h * 0.6)
+            mouth_roi_h = int(h * 0.4)
+            mouth_roi = gray[mouth_roi_y:mouth_roi_y+mouth_roi_h, x:x+w]
+            
+            # Detect smiles/mouth movement
+            mouths = smile_cascade.detectMultiScale(
+                mouth_roi,
+                scaleFactor=1.7,
+                minNeighbors=20,
+                minSize=(25, 25),
+                flags=cv2.CASCADE_SCALE_IMAGE
+            )
+            
+            # If mouth detected (often triggers on talking/movement)
+            lip_movement_detected = len(mouths) > 0
+            if lip_movement_detected:
+                 # Check previous state to avoid spamming alerts too fast, but we rely on the logic below
+                 pass
+
             # Calculate precise face angle using multiple methods
             raw_face_angle = calculate_face_angle_precise(x, w, frame_w, eyes)
             face_angle = smooth_angle(raw_face_angle)
@@ -286,6 +341,10 @@ while True:
             if is_moving_away:
                 distraction_factors.append(("Moving away", 0.7))
             
+            # Factor 6: Lip Movement
+            if lip_movement_detected:
+                distraction_factors.append(("Lip movement detected", 0.9))
+            
             # Calculate overall distraction confidence
             prev_confidence = distraction_confidence  # Store previous value
             if distraction_factors:
@@ -313,10 +372,23 @@ while True:
             if distracted:
                 if look_away_start is None:
                     look_away_start = time.time()
-                elif time.time() - look_away_start >= LOOK_AWAY_DURATION:
+                
+                # Check duration OR if it's lip movement (trigger faster for talking)
+                duration_threshold = LOOK_AWAY_DURATION
+                if distraction_reason == "Lip movement detected":
+                    duration_threshold = 0.5 # Faster trigger for talking
+                
+                if time.time() - look_away_start >= duration_threshold:
                     if not alert_active:
                         alert_active = True
                         alert_start_time = time.time()
+                        
+                        # Determine alert type to send
+                        alert_type = "LOOKING_AWAY" # Default
+                        if distraction_reason == "Lip movement detected":
+                             alert_type = "LIP_MOVEMENT"
+                        
+                        send_alert_async(alert_type, distraction_reason)
                 else:
                     # Still counting down, don't activate alert yet
                     pass
@@ -339,6 +411,16 @@ while True:
             # Draw eyes
             for (ex, ey, ew, eh) in eyes:
                 cv2.rectangle(frame, (ex, ey), (ex + ew, ey + eh), (255, 0, 0), 2)
+            
+            # Draw mouth/lips if detected (Red rectangle if movement detected)
+            for (mx, my, mw, mh) in mouths:
+                # Adjust coordinates relative to the full frame
+                mx += x
+                my += mouth_roi_y
+                cv2.rectangle(frame, (mx, my), (mx + mw, my + mh), (0, 0, 255), 2)
+                
+                # Add label
+                cv2.putText(frame, "Talking/Moving", (mx, my-5), cv2.FONT_HERSHEY_SIMPLEX, 0.4, (0, 0, 255), 1)
             
             # Draw alert message inside the rectangle in small text
             if alert_active:
@@ -398,6 +480,13 @@ while True:
         # Update countdown based on elapsed time
         elapsed_time = time.time() - no_face_start_time
         countdown_value = max(0, int(11 - elapsed_time))
+        
+        # Send alert if this is a new "no face" event (throttled)
+        # We use a simple latch to avoid spamming: sending once per disappearance is usually enough, 
+        # but here we'll send it if 'no_face_start_time' was just set (implied by context logic, strictly speaking we'd want a flag)
+        # Instead, let's track if we sent it.
+        if elapsed_time < 0.2: # Rough check to send only at start
+             send_alert_async("FACE_NOT_VISIBLE", "User left the camera view")
         
         # Display "No face detected" message at top left (blinking)
         no_face_text = "No face detected"
