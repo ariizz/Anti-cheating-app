@@ -3,14 +3,18 @@ import time
 import numpy as np
 from collections import deque
 
-# Try to import ML detector for high-precision detection
 try:
     from ml_detector import MLDetector
     ML_AVAILABLE = True
-    print("✓ ML Detector loaded - Using high-precision detection")
 except ImportError:
     ML_AVAILABLE = False
-    print("⚠ ML Detector not available - Using standard detection")
+
+# Import Adaptive ML Proctor for continuous learning
+try:
+    from adaptive_ml_proctor import AdaptiveMLProctor
+    ADAPTIVE_ML_AVAILABLE = True
+except ImportError:
+    ADAPTIVE_ML_AVAILABLE = False
 
 # Load the pre-trained face and eye detection models (fallback)
 face_cascade = cv2.CascadeClassifier(cv2.data.haarcascades + 'haarcascade_frontalface_default.xml')
@@ -80,6 +84,7 @@ def send_alert_async(alert_type, reason):
                 pass # Success
         except Exception as e:
             # Silently fail if dashboard is down to keep CV running
+            print(f"⚠ Alert failed to send: {e}")
             pass
             
     # Run in thread
@@ -112,18 +117,22 @@ ALERT_COOLDOWN = 3.0  # Minimum seconds between same alert type
 
 # Initialize ML Detector if available
 ml_detector = None
-use_ml_detection = False  # Disabled by default - set to True to enable ML mode
+use_ml_detection = False
+adaptive_proctor = None
 
-# Try to initialize ML detector
 if ML_AVAILABLE:
     try:
         ml_detector = MLDetector()
-        # Uncomment the line below to enable ML detection (currently has issues)
-        # use_ml_detection = True
-        print("⚠ ML Detector available but disabled - Using standard detection for stability")
+        print("✓ ML Detector initialized")
     except Exception as e:
-        print(f"⚠ ML Detector initialization failed: {e}")
-        use_ml_detection = False
+        print(f"⚠ ML Detector init failed: {e}")
+
+if ADAPTIVE_ML_AVAILABLE:
+    try:
+        adaptive_proctor = AdaptiveMLProctor()
+        print("✓ Adaptive Learning System active")
+    except Exception as e:
+        print(f"⚠ Adaptive System init failed: {e}")
 
 print("Press 'q' to quit the application.")
 
@@ -325,7 +334,10 @@ while True:
             x, y, w, h = faces[0]
             cv2.rectangle(frame, (x, y), (x+w, y+h), (0, 255, 255), 2)
             
-            # Use ML detector for scanning if available
+            # Use ML detectors for scanning if available
+            if adaptive_proctor:
+                adaptive_proctor.scan_and_calibrate(frame)
+
             if use_ml_detection and ml_detector:
                 # ML-based face scanning
                 scanning_frames += 1
@@ -352,7 +364,7 @@ while True:
                     
                 scanning_frames += 1
                 
-                if time.time() - scan_start_time > 3.0:
+                if time.time() - scan_start_time > 2.0:
                     scan_complete = True
                     print("Scan Complete")
         else:
@@ -369,9 +381,23 @@ while True:
     # --- MONITORING PHASE ---
     
     # Show "Scan Complete" briefly
-    if time.time() - scan_start_time < 5.0:
+    if time.time() - scan_start_time < 3.0:
         mode_text = "ML MODE" if use_ml_detection else "STANDARD MODE"
         cv2.putText(frame, f"SCAN COMPLETE - {mode_text} ACTIVE", (50, 50), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 0), 2)
+
+    # Behavior Learning (Adaptive ML)
+    if adaptive_proctor:
+        adaptive_analysis = adaptive_proctor.analyze_frame(frame)
+        # Display learning status
+        learn_status = f"Self-Learning: {adaptive_proctor.samples_collected} samples"
+        cv2.putText(frame, learn_status, (frame_w - 300, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 255), 1)
+        if adaptive_proctor.behavior_model:
+            cv2.putText(frame, "Behavior Model: ACTIVE", (frame_w - 300, 55), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 1)
+        
+        # Check for anomalies
+        for alert_type, alert_reason in adaptive_analysis.get('alerts', []):
+            if alert_type == 'ANOMALY':
+                 send_alert_async("LOOKING_AWAY", f"Anomaly: {alert_reason}")
 
     face_detected = False
     distracted = False
@@ -436,7 +462,7 @@ while True:
                 
                 # Talking detection
                 if analysis["is_talking"]:
-                    distraction_factors.append(("Lip movement detected", 0.9))
+                    distraction_factors.append(("Lip movement Detected", 0.9))
                 
                 # Determine if distracted
                 if distraction_factors:
@@ -448,7 +474,7 @@ while True:
                     if look_away_start is None:
                         look_away_start = time.time()
                     
-                    threshold = 0.5 if distraction_reason == "Lip movement detected" else LOOK_AWAY_DURATION
+                    threshold = 0.1 if distraction_reason == "Lip movement Detected" else LOOK_AWAY_DURATION
                     
                     if time.time() - look_away_start >= threshold:
                         if not alert_active:
@@ -456,7 +482,7 @@ while True:
                             alert_start_time = time.time()
                             
                             a_type = "LOOKING_AWAY"
-                            if distraction_reason == "Lip movement detected":
+                            if distraction_reason == "Lip movement Detected":
                                 a_type = "LIP_MOVEMENT"
                             elif distraction_reason == "Eyes closed":
                                 a_type = "FACE_NOT_VISIBLE"
@@ -614,7 +640,7 @@ while True:
                     if is_moving_away:
                         distraction_factors.append(("Moving away", 0.7))
                     if lip_movement_detected:
-                        distraction_factors.append(("Lip movement detected", 0.9))
+                        distraction_factors.append(("Lip movement Detected", 0.9))
                     
                     # Calculate confidence
                     if distraction_factors:
@@ -636,13 +662,13 @@ while True:
                             look_away_start = time.time()
                         
                         # Custom threshold for lips
-                        threshold = 0.5 if distraction_reason == "Lip movement detected" else LOOK_AWAY_DURATION
+                        threshold = 1.0 if distraction_reason == "Lip movement Detected" else LOOK_AWAY_DURATION
                         
                         if time.time() - look_away_start >= threshold:
                             if not alert_active:
                                 alert_active = True
                                 alert_start_time = time.time()
-                                type_ = "LIP_MOVEMENT" if distraction_reason == "Lip movement detected" else "LOOKING_AWAY"
+                                type_ = "LIP_MOVEMENT" if distraction_reason == "Lip movement Detected" else "LOOKING_AWAY"
                                 send_alert_async(type_, distraction_reason)
                     else:
                         look_away_start = None
@@ -661,7 +687,7 @@ while True:
                             mx += x
                             my += mouth_roi_y
                             cv2.rectangle(frame, (mx, my), (mx+mw, my+mh), (0, 0, 255), 2)
-                            cv2.putText(frame, "Talking", (mx, my-5), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 255), 2)
+                            cv2.putText(frame, "Lip movement Detected", (mx, my-5), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 255), 2)
 
                     if alert_active:
                         cv2.putText(frame, f"ALERT: {distraction_reason}", (x, y-10), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 0, 255), 2)
@@ -943,5 +969,9 @@ while True:
 
 
 # Release the capture and close windows
+if 'adaptive_proctor' in globals() and adaptive_proctor:
+    print("💾 Saving behavior patterns...")
+    adaptive_proctor.save_models()
+
 video_capture.release()
 cv2.destroyAllWindows()
