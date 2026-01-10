@@ -101,6 +101,7 @@ eye_detection_history = deque(maxlen=10)
 distraction_confidence = 0.0
 no_face_start_time = None
 countdown_value = 10
+must_terminate = False
 
 # Incident log for display (store last 10 incidents)
 incident_log = deque(maxlen=10)
@@ -426,6 +427,7 @@ while True:
                            cv2.FONT_HERSHEY_SIMPLEX, 1.5, (0, 0, 255), 3)
             
             send_alert_async("MULTIPLE_FACES", f"{num_faces} people detected")
+            no_face_start_time = None
         
         # Handle single face
         elif num_faces == 1:
@@ -441,10 +443,12 @@ while True:
                                cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 0, 255), 3)
                 
                 send_alert_async("WRONG_FACE", f"Identity mismatch (conf: {analysis['identity_confidence']:.2f})")
+                no_face_start_time = None
             
             else:
                 # Identity confirmed - check for distractions
                 face_detected = True
+                no_face_start_time = None
                 distraction_factors = []
                 
                 # Gaze detection
@@ -520,11 +524,24 @@ while True:
             if elapsed < 0.2:
                 send_alert_async("FACE_NOT_VISIBLE", "No face detected")
             
-            if int(time.time() * 2) % 2 == 0:
-                cv2.putText(frame, "NO FACE DETECTED", (20, 50), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 0, 255), 2)
-            
             remaining = max(0, int(11 - elapsed))
-            cv2.putText(frame, f"Return in: {remaining}", (frame_w - 250, 50), cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 0, 255), 2)
+            
+            if remaining == 0:
+                # Terminated: Time Expired message
+                msg = "Terminated: Time Expired"
+                font = cv2.FONT_HERSHEY_SIMPLEX
+                font_scale = 1.5
+                thickness = 3
+                text_size = cv2.getTextSize(msg, font, font_scale, thickness)[0]
+                text_x = (frame_w - text_size[0]) // 2
+                text_y = (frame_h + text_size[1]) // 2
+                cv2.putText(frame, msg, (text_x, text_y), font, font_scale, (0, 0, 255), thickness)
+                must_terminate = True
+            else:
+                if int(time.time() * 2) % 2 == 0:
+                    cv2.putText(frame, "NO FACE DETECTED", (20, 50), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 0, 255), 2)
+                
+                cv2.putText(frame, f"Return in: {remaining}", (frame_w - 250, 50), cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 0, 255), 2)
     
     # ========================================================================
     # FALLBACK: STANDARD HAAR CASCADE DETECTION
@@ -544,6 +561,7 @@ while True:
                 cv2.putText(frame, alert_text, (frame_w//2 - 200, frame_h//2), cv2.FONT_HERSHEY_SIMPLEX, 1.5, (0, 0, 255), 3)
             
             send_alert_async("MULTIPLE_FACES", "Multiple people detected in frame")
+            no_face_start_time = None
             
         # 2. Single Face Identity Check
         elif len(faces) == 1:
@@ -581,6 +599,7 @@ while True:
                 
                 if not alert_active:
                     send_alert_async("WRONG_FACE", f"Unrecognized face detected (Score: {match_score:.2f})")
+                no_face_start_time = None
                 
             else:
                 # IDENTITY CONFIRMED
@@ -706,12 +725,25 @@ while True:
             if elapsed < 0.2:
                  send_alert_async("FACE_NOT_VISIBLE", "No face detected")
                  
-            # Blink Text
-            if int(time.time() * 2) % 2 == 0:
-                cv2.putText(frame, "NO FACE DETECTED", (20, 50), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 0, 255), 2)
-            
             remaining = max(0, int(11 - elapsed))
-            cv2.putText(frame, f"Return in: {remaining}", (frame_w - 250, 50), cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 0, 255), 2)
+            
+            if remaining == 0:
+                # Terminated: Time Expired message
+                msg = "Terminated: Time Expired"
+                font = cv2.FONT_HERSHEY_SIMPLEX
+                font_scale = 1.5
+                thickness = 3
+                text_size = cv2.getTextSize(msg, font, font_scale, thickness)[0]
+                text_x = (frame_w - text_size[0]) // 2
+                text_y = (frame_h + text_size[1]) // 2
+                cv2.putText(frame, msg, (text_x, text_y), font, font_scale, (0, 0, 255), thickness)
+                must_terminate = True
+            else:
+                # Blink Text
+                if int(time.time() * 2) % 2 == 0:
+                    cv2.putText(frame, "NO FACE DETECTED", (20, 50), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 0, 255), 2)
+                
+                cv2.putText(frame, f"Return in: {remaining}", (frame_w - 250, 50), cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 0, 255), 2)
 
     # ============================================================================
     # PREMIUM SPLIT-SCREEN LAYOUT WITH PROFESSIONAL DESIGN
@@ -964,6 +996,11 @@ while True:
                 cv2.FONT_HERSHEY_SIMPLEX, 0.5, (100, 200, 255), 1)
 
     cv2.imshow('DRISHTI - AI Proctoring System', canvas)
+    
+    if must_terminate:
+        cv2.waitKey(3000)  # Wait for 3 seconds as requested
+        break
+        
     if cv2.waitKey(1) & 0xFF == ord('q'):
         break
 
