@@ -219,7 +219,7 @@ class AdaptiveMLProctor:
             analysis['is_talking'] = len(mouths) > 0
             
             if analysis['is_talking']:
-                analysis['alerts'].append(('LIP_MOVEMENT', 'Mouth movement detected'))
+                analysis['alerts'].append(('LIP_MOVEMENT', 'Lip Motion Detected'))
         
         # Anomaly detection (if model trained)
         if self.behavior_model is not None and ML_AVAILABLE:

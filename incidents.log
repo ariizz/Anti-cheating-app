@@ -3843,3 +3843,60 @@
 {"type": "FACE_NOT_VISIBLE", "details": {"reason": "No face detected"}, "timestamp": "2026-01-10 06:13:40"}
 {"type": "LOOKING_AWAY", "details": {"reason": "Anomaly: Unusual behavior (score: 0.66)"}, "timestamp": "2026-01-10 06:13:43"}
 {"type": "FACE_NOT_VISIBLE", "details": {"reason": "No face detected"}, "timestamp": "2026-01-10 06:13:43"}
+{"type": "LOOKING_AWAY", "details": {"reason": "Anomaly: Unusual behavior (score: 0.65)"}, "timestamp": "2026-01-10 10:33:24"}
+{"type": "LOOKING_AWAY", "details": {"reason": "Anomaly: Unusual behavior (score: 0.65)"}, "timestamp": "2026-01-10 10:33:27"}
+{"type": "LOOKING_AWAY", "details": {"reason": "Anomaly: Unusual behavior (score: 0.64)"}, "timestamp": "2026-01-10 10:33:30"}
+{"type": "LOOKING_AWAY", "details": {"reason": "Anomaly: Unusual behavior (score: 0.65)"}, "timestamp": "2026-01-10 10:33:33"}
+{"type": "MULTIPLE_FACES", "details": {"reason": "Multiple people detected in frame"}, "timestamp": "2026-01-10 10:33:36"}
+{"type": "LOOKING_AWAY", "details": {"reason": "Anomaly: Unusual behavior (score: 0.64)"}, "timestamp": "2026-01-10 10:33:36"}
+{"type": "LOOKING_AWAY", "details": {"reason": "Anomaly: Unusual behavior (score: 0.65)"}, "timestamp": "2026-01-10 10:33:40"}
+{"type": "FACE_NOT_VISIBLE", "details": {"reason": "No face detected"}, "timestamp": "2026-01-10 10:33:43"}
+{"type": "LOOKING_AWAY", "details": {"reason": "Anomaly: Unusual behavior (score: 0.65)"}, "timestamp": "2026-01-10 10:33:44"}
+{"type": "FACE_NOT_VISIBLE", "details": {"reason": "No face detected"}, "timestamp": "2026-01-10 10:33:47"}
+{"type": "LOOKING_AWAY", "details": {"reason": "Anomaly: Unusual behavior (score: 0.65)"}, "timestamp": "2026-01-10 10:33:47"}
+{"type": "LOOKING_AWAY", "details": {"reason": "Anomaly: Unusual behavior (score: 0.64)"}, "timestamp": "2026-01-10 10:33:50"}
+{"type": "LOOKING_AWAY", "details": {"reason": "Anomaly: Unusual behavior (score: 0.65)"}, "timestamp": "2026-01-10 10:33:53"}
+{"type": "LOOKING_AWAY", "details": {"reason": "Anomaly: Unusual behavior (score: 0.64)"}, "timestamp": "2026-01-10 10:33:56"}
+{"type": "LOOKING_AWAY", "details": {"reason": "Anomaly: Unusual behavior (score: 0.65)"}, "timestamp": "2026-01-10 10:33:59"}
+{"type": "LOOKING_AWAY", "details": {"reason": "Anomaly: Unusual behavior (score: 0.64)"}, "timestamp": "2026-01-10 10:34:02"}
+{"type": "FACE_NOT_VISIBLE", "details": {"reason": "No face detected"}, "timestamp": "2026-01-10 10:34:03"}
+{"type": "LOOKING_AWAY", "details": {"reason": "Anomaly: Unusual behavior (score: 0.64)"}, "timestamp": "2026-01-10 10:34:05"}
+{"type": "LOOKING_AWAY", "details": {"reason": "Anomaly: Unusual behavior (score: 0.65)"}, "timestamp": "2026-01-10 10:34:08"}
+{"type": "FACE_NOT_VISIBLE", "details": {"reason": "No face detected"}, "timestamp": "2026-01-10 10:34:09"}
+{"type": "LOOKING_AWAY", "details": {"reason": "Anomaly: Unusual behavior (score: 0.65)"}, "timestamp": "2026-01-10 10:34:11"}
+{"type": "MULTIPLE_FACES", "details": {"reason": "Multiple people detected in frame"}, "timestamp": "2026-01-10 10:34:14"}
+{"type": "LOOKING_AWAY", "details": {"reason": "Anomaly: Unusual behavior (score: 0.63)"}, "timestamp": "2026-01-10 10:34:15"}
+{"type": "LOOKING_AWAY", "details": {"reason": "Anomaly: Unusual behavior (score: 0.63)"}, "timestamp": "2026-01-10 10:34:18"}
+{"type": "LOOKING_AWAY", "details": {"reason": "Anomaly: Unusual behavior (score: 0.64)"}, "timestamp": "2026-01-10 10:34:21"}
+{"type": "LOOKING_AWAY", "details": {"reason": "Anomaly: Unusual behavior (score: 0.64)"}, "timestamp": "2026-01-10 10:34:24"}
+{"type": "LOOKING_AWAY", "details": {"reason": "Anomaly: Unusual behavior (score: 0.65)"}, "timestamp": "2026-01-10 10:34:27"}
+{"type": "LOOKING_AWAY", "details": {"reason": "Anomaly: Unusual behavior (score: 0.64)"}, "timestamp": "2026-01-10 10:34:30"}
+{"type": "LOOKING_AWAY", "details": {"reason": "Anomaly: Unusual behavior (score: 0.65)"}, "timestamp": "2026-01-10 10:34:33"}
+{"type": "LIP_MOVEMENT", "details": {"reason": "Lip movement Detected"}, "timestamp": "2026-01-10 10:34:35"}
+{"type": "LOOKING_AWAY", "details": {"reason": "Anomaly: Unusual behavior (score: 0.64)"}, "timestamp": "2026-01-10 10:34:36"}
+{"type": "LOOKING_AWAY", "details": {"reason": "Anomaly: Unusual behavior (score: 0.64)"}, "timestamp": "2026-01-10 10:34:40"}
+{"type": "FACE_NOT_VISIBLE", "details": {"reason": "No face detected"}, "timestamp": "2026-01-10 10:34:41"}
+{"type": "LOOKING_AWAY", "details": {"reason": "Anomaly: Unusual behavior (score: 0.64)"}, "timestamp": "2026-01-10 10:34:43"}
+{"type": "LOOKING_AWAY", "details": {"reason": "Anomaly: Unusual behavior (score: 0.65)"}, "timestamp": "2026-01-10 10:39:59"}
+{"type": "WRONG_FACE", "details": {"reason": "Unrecognized face detected (Score: 0.63)"}, "timestamp": "2026-01-10 10:40:01"}
+{"type": "LOOKING_AWAY", "details": {"reason": "Anomaly: Unusual behavior (score: 0.65)"}, "timestamp": "2026-01-10 10:40:02"}
+{"type": "WRONG_FACE", "details": {"reason": "Unrecognized face detected (Score: 0.64)"}, "timestamp": "2026-01-10 10:40:04"}
+{"type": "LOOKING_AWAY", "details": {"reason": "Anomaly: Unusual behavior (score: 0.64)"}, "timestamp": "2026-01-10 10:40:05"}
+{"type": "WRONG_FACE", "details": {"reason": "Unrecognized face detected (Score: 0.64)"}, "timestamp": "2026-01-10 10:40:07"}
+{"type": "LOOKING_AWAY", "details": {"reason": "Anomaly: Unusual behavior (score: 0.65)"}, "timestamp": "2026-01-10 10:40:08"}
+{"type": "WRONG_FACE", "details": {"reason": "Unrecognized face detected (Score: 0.64)"}, "timestamp": "2026-01-10 10:40:11"}
+{"type": "LOOKING_AWAY", "details": {"reason": "Anomaly: Unusual behavior (score: 0.65)"}, "timestamp": "2026-01-10 10:40:11"}
+{"type": "WRONG_FACE", "details": {"reason": "Unrecognized face detected (Score: 0.62)"}, "timestamp": "2026-01-10 10:40:14"}
+{"type": "LOOKING_AWAY", "details": {"reason": "Anomaly: Unusual behavior (score: 0.65)"}, "timestamp": "2026-01-10 10:40:31"}
+{"type": "LOOKING_AWAY", "details": {"reason": "Anomaly: Unusual behavior (score: 0.65)"}, "timestamp": "2026-01-10 10:40:34"}
+{"type": "LOOKING_AWAY", "details": {"reason": "Anomaly: Unusual behavior (score: 0.66)"}, "timestamp": "2026-01-10 10:40:37"}
+{"type": "LOOKING_AWAY", "details": {"reason": "Anomaly: Unusual behavior (score: 0.65)"}, "timestamp": "2026-01-10 10:40:40"}
+{"type": "LOOKING_AWAY", "details": {"reason": "Anomaly: Unusual behavior (score: 0.64)"}, "timestamp": "2026-01-10 10:40:43"}
+{"type": "LOOKING_AWAY", "details": {"reason": "Anomaly: Unusual behavior (score: 0.65)"}, "timestamp": "2026-01-10 10:40:47"}
+{"type": "LOOKING_AWAY", "details": {"reason": "Anomaly: Unusual behavior (score: 0.65)"}, "timestamp": "2026-01-10 10:40:50"}
+{"type": "LOOKING_AWAY", "details": {"reason": "Anomaly: Unusual behavior (score: 0.65)"}, "timestamp": "2026-01-10 10:40:53"}
+{"type": "LOOKING_AWAY", "details": {"reason": "Anomaly: Unusual behavior (score: 0.64)"}, "timestamp": "2026-01-10 10:40:56"}
+{"type": "MULTIPLE_FACES", "details": {"reason": "Multiple people detected in frame"}, "timestamp": "2026-01-10 10:40:57"}
+{"type": "LOOKING_AWAY", "details": {"reason": "Anomaly: Unusual behavior (score: 0.65)"}, "timestamp": "2026-01-10 10:40:59"}
+{"type": "LOOKING_AWAY", "details": {"reason": "Anomaly: Unusual behavior (score: 0.64)"}, "timestamp": "2026-01-10 10:41:02"}
+{"type": "LOOKING_AWAY", "details": {"reason": "Anomaly: Unusual behavior (score: 0.63)"}, "timestamp": "2026-01-10 10:41:05"}

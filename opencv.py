@@ -496,7 +496,7 @@ while True:
                 
                 # Talking detection
                 if analysis["is_talking"]:
-                    distraction_factors.append(("Lip movement Detected", 0.9))
+                    distraction_factors.append(("Lip Motion Detected", 0.9))
                 
                 # Determine if distracted
                 if distraction_factors:
@@ -508,7 +508,7 @@ while True:
                     if look_away_start is None:
                         look_away_start = time.time()
                     
-                    threshold = 0.1 if distraction_reason == "Lip movement Detected" else LOOK_AWAY_DURATION
+                    threshold = 0.1 if distraction_reason == "Lip Motion Detected" else LOOK_AWAY_DURATION
                     
                     if time.time() - look_away_start >= threshold:
                         if not alert_active:
@@ -689,7 +689,7 @@ while True:
                     if is_moving_away:
                         distraction_factors.append(("Moving away", 0.7))
                     if lip_movement_detected:
-                        distraction_factors.append(("Lip movement Detected", 0.9))
+                        distraction_factors.append(("Lip Motion Detected", 0.9))
                     
                     # Calculate confidence
                     if distraction_factors:
@@ -711,13 +711,13 @@ while True:
                             look_away_start = time.time()
                         
                         # Custom threshold for lips
-                        threshold = 1.0 if distraction_reason == "Lip movement Detected" else LOOK_AWAY_DURATION
+                        threshold = 1.0 if distraction_reason == "Lip Motion Detected" else LOOK_AWAY_DURATION
                         
                         if time.time() - look_away_start >= threshold:
                             if not alert_active:
                                 alert_active = True
                                 alert_start_time = time.time()
-                                type_ = "LIP_MOVEMENT" if distraction_reason == "Lip movement Detected" else "LOOKING_AWAY"
+                                type_ = "LIP_MOVEMENT" if distraction_reason == "Lip Motion Detected" else "LOOKING_AWAY"
                                 send_alert_async(type_, distraction_reason)
                     else:
                         look_away_start = None
@@ -736,7 +736,7 @@ while True:
                             mx += x
                             my += mouth_roi_y
                             cv2.rectangle(frame, (mx, my), (mx+mw, my+mh), (0, 0, 255), 2)
-                            cv2.putText(frame, "Lip movement Detected", (mx, my-5), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 255), 2)
+                            cv2.putText(frame, "Lip Motion Detected", (mx, my-5), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 255), 2)
 
                     if alert_active:
                         cv2.putText(frame, f"ALERT: {distraction_reason}", (x, y-10), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 0, 255), 2)
@@ -943,7 +943,7 @@ while True:
             },
             "LIP_MOVEMENT": {
                 "color": (0, 200, 255),
-                "name": "Lip Movement",
+                "name": "Lip Motion Detected",
                 "severity": "MEDIUM",
                 "sev_color": (0, 200, 255)
             },
