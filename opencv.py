@@ -58,6 +58,10 @@ def send_alert_async(alert_type, reason):
     # Update last alert time
     last_alert_times[alert_type] = current_time
     
+    # Increment session stats for scoring
+    if alert_type in session_stats:
+        session_stats[alert_type] += 1
+    
     def _send():
         try:
             timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
@@ -115,6 +119,15 @@ last_alert_times = {
     "MULTIPLE_FACES": 0
 }
 ALERT_COOLDOWN = 3.0  # Minimum seconds between same alert type
+
+# Session stats for behavior scoring
+session_stats = {
+    "LOOKING_AWAY": 0,
+    "LIP_MOVEMENT": 0,
+    "FACE_NOT_VISIBLE": 0,
+    "WRONG_FACE": 0,
+    "MULTIPLE_FACES": 0
+}
 
 # Initialize ML Detector if available
 ml_detector = None
@@ -324,9 +337,26 @@ while True:
     
     # --- SCANNING PHASE ---
     if not scan_complete:
-        # Draw scanning overlay
-        cv2.putText(frame, "SCANNING USER FACE...", (50, 50), cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 0, 0), 2)
-        cv2.rectangle(frame, (50, 70), (50 + int(scanning_frames * 2), 90), (0, 255, 0), -1)
+        # Calculate progress
+        duration = 3.0 if (use_ml_detection and ml_detector) else 2.0
+        progress = min(1.0, (time.time() - scan_start_time) / duration) if scan_start_time else 0.0
+        percentage = int(progress * 100)
+        
+        # Design parameters
+        bar_x, bar_y = 50, 75
+        bar_width = 250
+        bar_height = 6 # Slimmer
+        
+        # Draw scanning text
+        cv2.putText(frame, "SCANNING USER FACE...", (bar_x, bar_y - 15), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 0, 255), 2) # Red
+        
+        # Draw bar background
+        cv2.rectangle(frame, (bar_x, bar_y), (bar_x + bar_width, bar_y + bar_height), (40, 40, 40), -1)
+        # Draw blue loading bar
+        cv2.rectangle(frame, (bar_x, bar_y), (bar_x + int(bar_width * progress), bar_y + bar_height), (255, 120, 0), -1)
+        
+        # Draw percentage in small text
+        cv2.putText(frame, f"{percentage}%", (bar_x + bar_width + 10, bar_y + bar_height), cv2.FONT_HERSHEY_SIMPLEX, 0.4, (0, 0, 255), 1) # Red
         
         if len(faces) == 1:
             if scan_start_time is None:
@@ -1009,6 +1039,71 @@ while True:
 if 'adaptive_proctor' in globals() and adaptive_proctor:
     print("💾 Saving behavior patterns...")
     adaptive_proctor.save_models()
+
+# === BEHAVIOR SCORE CALCULATION ===
+# Scoring is based on severity analysis: Less strict, more holistic
+base_score = 100
+
+# Mapping incident types to severity weights
+severity_weights = {
+    "CRITICAL": 5,   # Identity mismatch, Multiple people
+    "HIGH": 3,       # Face missing for duration
+    "MEDIUM": 1,     # Looking away, Lip movement
+    "LOW": 0.5       # Minor anomalies
+}
+
+# Incident to Severity mapping
+incident_severity = {
+    "WRONG_FACE": "CRITICAL",
+    "MULTIPLE_FACES": "CRITICAL",
+    "FACE_NOT_VISIBLE": "HIGH",
+    "LOOKING_AWAY": "MEDIUM",
+    "LIP_MOVEMENT": "MEDIUM"
+}
+
+total_deduction = 0
+for alert_type, count in session_stats.items():
+    severity = incident_severity.get(alert_type, "LOW")
+    weight = severity_weights.get(severity, 0.5)
+    
+    # Apply a square root damping to prevent runaway scores from high-frequency events (like looking away)
+    # This keeps the scoring fair for long sessions
+    category_deduction = (count ** 0.8) * weight
+    total_deduction += category_deduction
+
+# Final behavior score (non-negative)
+behavior_score = int(max(0, base_score - total_deduction))
+
+# Display Session Summary Box
+print("\n" + "==" * 25)
+print(f"{'PROCTORING SESSION SUMMARY':^50}")
+print("==" * 25)
+print(f"  Final Integrity Score:  {behavior_score}/100")
+print(f"  Total Flagged Events:   {sum(session_stats.values())}")
+print("--" * 25)
+
+# Detailed Breakdown
+any_alerts = False
+for alert_type, count in session_stats.items():
+    if count > 0:
+        any_alerts = True
+        label = alert_type.replace('_', ' ').title()
+        print(f"  • {label:<22}: {count}")
+
+if not any_alerts:
+    print("  • No violations detected. Clean session.")
+
+# Status Recommendation
+if behavior_score >= 85:
+    status = "VERIFIED (TRUSTED)"
+elif behavior_score >= 60:
+    status = "REVIEW (WARNING)"
+else:
+    status = "SUSPICIOUS (FAILED)"
+
+print("-" * 50)
+print(f"  Final Status: {status}")
+print("==" * 25 + "\n")
 
 video_capture.release()
 cv2.destroyAllWindows()

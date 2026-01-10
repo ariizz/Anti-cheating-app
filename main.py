@@ -53,101 +53,154 @@ def get_incidents():
 
 @app.get("/", response_class=HTMLResponse)
 def dashboard():
-    """Professional dashboard that polls /incidents and shows them in a table."""
+    """Premium Dark Dashboard with Glassmorphism for AI Proctoring."""
     html = """
     <!DOCTYPE html>
     <html lang="en">
     <head>
         <meta charset="UTF-8">
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <title>Incidents Data</title>
+        <title>Drishti AI | Proctoring Dashboard</title>
         <script src="https://cdn.tailwindcss.com"></script>
-        <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
+        <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
         <style>
-            body { font-family: 'Inter', sans-serif; }
-            .fade-in { animation: fadeIn 0.3s ease-in-out; }
-            @keyframes fadeIn { from { opacity: 0; transform: translateY(5px); } to { opacity: 1; transform: translateY(0); } }
+            :root {
+                --accent: #3b82f6;
+                --accent-glow: rgba(59, 130, 246, 0.5);
+                --bg: #0f172a;
+                --card-bg: rgba(30, 41, 59, 0.7);
+                --border: rgba(255, 255, 255, 0.08);
+            }
+            body { 
+                font-family: 'Outfit', sans-serif;
+                background-color: var(--bg);
+                background-image: 
+                    radial-gradient(at 0% 0%, rgba(59, 130, 246, 0.15) 0px, transparent 50%),
+                    radial-gradient(at 100% 100%, rgba(147, 51, 234, 0.1) 0px, transparent 50%);
+                color: #f8fafc;
+            }
+            .glass {
+                background: var(--card-bg);
+                backdrop-filter: blur(12px);
+                border: 1px solid var(--border);
+                box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.3);
+            }
+            .incident-row {
+                transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            }
+            .incident-row:hover {
+                background: rgba(255, 255, 255, 0.03);
+            }
+            @keyframes pulse-custom {
+                0%, 100% { opacity: 1; transform: scale(1); }
+                50% { opacity: 0.5; transform: scale(1.1); }
+            }
+            .pulse-green { animation: pulse-custom 2s infinite; }
+            
+            ::-webkit-scrollbar { width: 6px; }
+            ::-webkit-scrollbar-track { background: rgba(0,0,0,0.1); }
+            ::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 10px; }
+            ::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.2); }
         </style>
     </head>
-    <body class="bg-gray-50 text-gray-800 h-screen flex flex-col overflow-hidden">
+    <body class="h-screen flex flex-col overflow-hidden">
         
-        <!-- Header -->
-        <header class="bg-white border-b border-gray-200 px-8 py-4 flex justify-between items-center shadow-sm z-10">
-            <div class="flex items-center gap-3">
-                <div class="h-8 w-8 bg-black rounded-lg flex items-center justify-center">
-                    <span class="text-white font-bold text-lg">I</span>
-                </div>
-                <h1 class="font-semibold text-xl tracking-tight text-gray-900">Incidents Data</h1>
-            </div>
+        <nav class="glass border-b border-white/5 px-8 py-4 flex justify-between items-center z-50">
             <div class="flex items-center gap-4">
-                <div class="flex items-center gap-2 text-sm text-gray-500 bg-gray-100 px-3 py-1.5 rounded-full">
-                    <span class="relative flex h-2 w-2">
-                      <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
-                      <span class="relative inline-flex rounded-full h-2 w-2 bg-green-500"></span>
-                    </span>
-                    Live Monitoring
+                <div class="h-10 w-10 bg-blue-600 rounded-xl flex items-center justify-center shadow-lg shadow-blue-500/30">
+                    <span class="text-white font-bold text-xl">¬_¬</span>
+                </div>
+                <div>
+                    <h1 class="font-bold text-xl tracking-tight bg-clip-text text-transparent bg-gradient-to-r from-white to-white/60">Drishti AI</h1>
+                    <p class="text-[10px] uppercase tracking-[0.2em] text-blue-400 font-bold">Proctoring Control Center</p>
                 </div>
             </div>
-        </header>
+            <div class="flex items-center gap-6">
+                <div class="flex items-center gap-3 bg-white/5 border border-white/10 px-4 py-2 rounded-full">
+                    <div class="h-2 w-2 rounded-full bg-green-500 pulse-green"></div>
+                    <span class="text-sm font-medium text-white/80">System Live</span>
+                </div>
+                <div class="text-sm text-white/50" id="current-time">00:00:00</div>
+            </div>
+        </nav>
 
-        <!-- Main Content -->
-        <main class="flex-1 flex overflow-hidden">
-            
-            <!-- Sidebar / Stats -->
-            <aside class="w-80 bg-white border-r border-gray-200 flex flex-col p-6 gap-6 overflow-y-auto hidden md:flex">
-                <div>
-                    <h2 class="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-4">Overview</h2>
+        <main class="flex-1 flex overflow-hidden p-6 gap-6">
+            <aside class="w-80 flex flex-col gap-6">
+                <div class="glass rounded-3xl p-6 flex flex-col gap-4">
+                    <h2 class="text-xs font-bold text-blue-400 uppercase tracking-widest">Analytics</h2>
                     <div class="grid grid-cols-1 gap-4">
-                        <div class="p-4 rounded-xl border border-gray-100 bg-gray-50">
-                            <div class="text-2xl font-bold text-gray-900" id="total-incidents">0</div>
-                            <div class="text-sm text-gray-500 font-medium">Total Incidents</div>
-                        </div>
-                        <div class="p-4 rounded-xl border border-red-50 bg-red-50/50">
-                            <div class="text-2xl font-bold text-red-600" id="looking-away-count">0</div>
-                            <div class="text-sm text-red-600/70 font-medium">Looking Away</div>
-                        </div>
-                         <div class="p-4 rounded-xl border border-orange-50 bg-orange-50/50">
-                            <div class="text-2xl font-bold text-orange-600" id="lip-count">0</div>
-                            <div class="text-sm text-orange-600/70 font-medium">Lip Movement</div>
-                        </div>
-                        <div class="p-4 rounded-xl border border-gray-100 bg-gray-50">
-                            <div class="text-2xl font-bold text-gray-700" id="face-missing-count">0</div>
-                            <div class="text-sm text-gray-500 font-medium">Face Missing</div>
+                        <div class="bg-white/5 rounded-2xl p-4 border border-white/5">
+                            <div class="text-3xl font-bold text-white" id="total-incidents">0</div>
+                            <div class="text-xs text-white/40 mt-1 uppercase tracking-wider">Total Events</div>
                         </div>
                     </div>
                 </div>
-                
-                <div class="mt-auto">
-                    <div class="text-xs text-gray-400 text-center">
-                        Last updated: <span id="last-updated">Never</span>
+
+                <div class="glass rounded-3xl p-6 flex-1 overflow-y-auto">
+                    <h2 class="text-xs font-bold text-blue-400 uppercase tracking-widest mb-6">Breach Summary</h2>
+                    <div class="space-y-6">
+                        <div class="space-y-2">
+                            <div class="flex justify-between text-[11px] uppercase tracking-wider font-bold text-white/60">
+                                <span>Looking Away</span>
+                                <span id="looking-away-count">0</span>
+                            </div>
+                            <div class="h-1.5 w-full bg-white/5 rounded-full overflow-hidden">
+                                <div id="looking-away-bar" class="h-full bg-blue-500 transition-all duration-1000" style="width: 0%"></div>
+                            </div>
+                        </div>
+                        <div class="space-y-2">
+                            <div class="flex justify-between text-[11px] uppercase tracking-wider font-bold text-white/60">
+                                <span>Lip Movement</span>
+                                <span id="lip-count">0</span>
+                            </div>
+                            <div class="h-1.5 w-full bg-white/5 rounded-full overflow-hidden">
+                                <div id="lip-bar" class="h-full bg-purple-500 transition-all duration-1000" style="width: 0%"></div>
+                            </div>
+                        </div>
+                        <div class="space-y-2">
+                            <div class="flex justify-between text-[11px] uppercase tracking-wider font-bold text-white/60">
+                                <span>Face Missing</span>
+                                <span id="face-missing-count">0</span>
+                            </div>
+                            <div class="h-1.5 w-full bg-white/5 rounded-full overflow-hidden">
+                                <div id="face-missing-bar" class="h-full bg-red-500 transition-all duration-1000" style="width: 0%"></div>
+                            </div>
+                        </div>
+                        <div class="space-y-2">
+                            <div class="flex justify-between text-[11px] uppercase tracking-wider font-bold text-white/60">
+                                <span>Multiple Faces</span>
+                                <span id="multi-face-count">0</span>
+                            </div>
+                            <div class="h-1.5 w-full bg-white/5 rounded-full overflow-hidden">
+                                <div id="multi-face-bar" class="h-full bg-pink-500 transition-all duration-1000" style="width: 0%"></div>
+                            </div>
+                        </div>
                     </div>
                 </div>
             </aside>
 
-            <!-- Incident Feed -->
-            <section class="flex-1 flex flex-col overflow-hidden bg-gray-50/50">
-                <div class="px-8 py-6 border-b border-gray-200 bg-white/50 backdrop-blur-sm sticky top-0 z-10 flex justify-between items-center">
-                    <h2 class="text-lg font-medium text-gray-900">Incident Log</h2>
-                    <button onclick="loadIncidents()" class="text-sm text-blue-600 hover:text-blue-800 font-medium transition-colors">
-                        Refresh Now
-                    </button>
-                </div>
-                
-                <div class="flex-1 overflow-y-auto px-8 py-6">
-                    <div class="max-w-4xl mx-auto">
-                        <table class="w-full text-left border-separate border-spacing-0">
-                            <thead>
+            <section class="flex-1 flex flex-col gap-6">
+                <div class="glass rounded-[2rem] flex flex-col overflow-hidden">
+                    <div class="px-8 py-6 border-b border-white/5 backdrop-blur-md flex justify-between items-center">
+                        <h2 class="text-lg font-bold">Real-time Stream</h2>
+                        <button onclick="loadIncidents()" class="bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold px-5 py-2.5 rounded-xl transition-all active:scale-95">
+                            Refresh
+                        </button>
+                    </div>
+                    
+                    <div class="flex-1 overflow-y-auto" style="height: calc(100vh - 220px);">
+                        <table class="w-full text-left border-collapse">
+                            <thead class="sticky top-0 bg-[#162035] text-[10px] uppercase tracking-[0.2em] text-white/40 font-bold">
                                 <tr>
-                                    <th class="pb-4 font-medium text-gray-500 text-sm border-b border-gray-200 w-32">Time</th>
-                                    <th class="pb-4 font-medium text-gray-500 text-sm border-b border-gray-200 w-48">Type</th>
-                                    <th class="pb-4 font-medium text-gray-500 text-sm border-b border-gray-200">Details</th>
+                                    <th class="px-8 py-4 border-b border-white/5">Time</th>
+                                    <th class="px-4 py-4 border-b border-white/5">Incident Type</th>
+                                    <th class="px-8 py-4 border-b border-white/5">Details</th>
                                 </tr>
                             </thead>
                             <tbody id="table-body" class="text-sm">
-                                <!-- Incidents will be inserted here -->
                                 <tr>
-                                    <td colspan="3" class="py-12 text-center text-gray-400">
-                                        Loading data...
+                                    <td colspan="3" class="py-24 text-center opacity-30 text-xs tracking-widest uppercase">
+                                        Initializing Stream...
                                     </td>
                                 </tr>
                             </tbody>
@@ -158,97 +211,77 @@ def dashboard():
         </main>
 
         <script>
+            function updateClock() {
+                const now = new Date();
+                document.getElementById('current-time').textContent = now.toLocaleTimeString();
+            }
+            setInterval(updateClock, 1000);
+            updateClock();
+
             function formatTime(timeStr) {
                 if (!timeStr) return '-';
-                // Try to parse string to get only H:M:S
-                try {
-                    return timeStr.split(' ')[1]; 
-                } catch(e) { return timeStr; }
+                try { return timeStr.split(' ')[1]; } catch(e) { return timeStr; }
             }
 
             async function loadIncidents() {
                 try {
                     const res = await fetch('/incidents');
                     const data = await res.json();
+                    const recentData = [...data].reverse();
                     
-                    // Stats
-                    const recentData = data.reverse(); // Show newest first
-                    const total = data.length;
                     const lookingAway = data.filter(i => i.type === 'LOOKING_AWAY').length;
                     const faceMissing = data.filter(i => i.type === 'FACE_NOT_VISIBLE').length;
                     const lipMovement = data.filter(i => i.type === 'LIP_MOVEMENT').length;
-                    
-                    document.getElementById('total-incidents').textContent = total;
+                    const multiFace = data.filter(i => i.type === 'MULTIPLE_FACES').length;
+
+                    document.getElementById('total-incidents').textContent = data.length;
                     document.getElementById('looking-away-count').textContent = lookingAway;
                     document.getElementById('face-missing-count').textContent = faceMissing;
                     document.getElementById('lip-count').textContent = lipMovement;
-                    
-                    const now = new Date();
-                    document.getElementById('last-updated').textContent = now.toLocaleTimeString();
+                    document.getElementById('multi-face-count').textContent = multiFace;
+
+                    const max = Math.max(lookingAway, faceMissing, lipMovement, multiFace, 1);
+                    document.getElementById('looking-away-bar').style.width = (lookingAway/max*100) + '%';
+                    document.getElementById('face-missing-bar').style.width = (faceMissing/max*100) + '%';
+                    document.getElementById('lip-bar').style.width = (lipMovement/max*100) + '%';
+                    document.getElementById('multi-face-bar').style.width = (multiFace/max*100) + '%';
 
                     const tbody = document.getElementById('table-body');
                     tbody.innerHTML = '';
 
                     if (recentData.length === 0) {
-                        tbody.innerHTML = `
-                            <tr>
-                                <td colspan="3" class="py-20 text-center">
-                                    <div class="inline-flex items-center justify-center w-12 h-12 bg-green-100 rounded-full mb-3">
-                                        <svg class="w-6 h-6 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>
-                                    </div>
-                                    <p class="text-gray-500 font-medium">All clear</p>
-                                    <p class="text-gray-400 text-xs mt-1">No incidents recorded yet.</p>
-                                </td>
-                            </tr>
-                        `;
+                        tbody.innerHTML = '<tr><td colspan="3" class="py-32 text-center opacity-30 uppercase text-xs tracking-widest font-bold">Secure Zone: No alerts</td></tr>';
                         return;
                     }
 
                     recentData.forEach((inc) => {
                         const tr = document.createElement('tr');
-                        tr.className = 'group hover:bg-white transition-colors fade-in';
+                        tr.className = 'incident-row border-b border-white/[0.02]';
                         
-                        // Type Badge Style
-                        let typeClass = 'bg-gray-100 text-gray-600';
-                        let typeLabel = inc.type;
-                        
-                        if (inc.type === 'LOOKING_AWAY') {
-                            typeClass = 'bg-yellow-100 text-yellow-700 border border-yellow-200';
-                            typeLabel = 'Looking Away';
-                        } else if (inc.type === 'FACE_NOT_VISIBLE') {
-                            typeClass = 'bg-red-100 text-red-700 border border-red-200';
-                            typeLabel = 'Face Missing';
-                        } else if (inc.type === 'LIP_MOVEMENT' || inc.type === 'Lip movement detected') { // Handle both just in case
-                             typeClass = 'bg-orange-100 text-orange-700 border border-orange-200';
-                             typeLabel = 'Lip Movement';
-                        }
-
-                        // Details Check
-                        let details = inc.details.reason || JSON.stringify(inc.details);
-                        if (details === '{}') details = '';
+                        let badge = 'bg-white/10 text-white';
+                        if (inc.type === 'LOOKING_AWAY') badge = 'bg-blue-500/10 text-blue-400 border border-blue-500/20';
+                        else if (inc.type === 'FACE_NOT_VISIBLE') badge = 'bg-red-500/10 text-red-400 border border-red-500/20';
+                        else if (inc.type === 'LIP_MOVEMENT') badge = 'bg-purple-500/10 text-purple-400 border border-purple-500/20';
+                        else if (inc.type === 'MULTIPLE_FACES') badge = 'bg-pink-500/10 text-pink-400 border border-pink-500/20';
 
                         tr.innerHTML = `
-                            <td class="py-4 border-b border-gray-100 text-gray-500 font-mono text-xs group-hover:text-gray-700">
+                            <td class="px-8 py-4 font-mono text-xs text-white/40">
                                 ${formatTime(inc.timestamp)}
                             </td>
-                            <td class="py-4 border-b border-gray-100">
-                                <span class="inline-flex items-center px-2.5 py-0.5 rounded-md text-xs font-medium ${typeClass}">
-                                    ${typeLabel}
+                            <td class="px-4 py-4">
+                                <span class="px-2 py-1 rounded-md text-[10px] font-bold uppercase ${badge}">
+                                    ${inc.type.replace(/_/g, ' ')}
                                 </span>
                             </td>
-                            <td class="py-4 border-b border-gray-100 text-gray-600">
-                                ${details}
+                            <td class="px-8 py-4 text-white/60">
+                                ${inc.details.reason || ''}
                             </td>
                         `;
                         tbody.appendChild(tr);
                     });
-
-                } catch (e) {
-                    console.error("Fetch error", e);
-                }
+                } catch (e) { console.error(e); }
             }
 
-            // Auto refresh every 2s
             setInterval(loadIncidents, 2000);
             loadIncidents();
         </script>
