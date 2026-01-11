@@ -1,5 +1,21 @@
 # 🎯 DRISHTI - AI Proctoring System
-## Complete Project Documentation
+
+**DRISHTI** is a complete AI-powered proctoring system with:
+- Real-time face detection and tracking
+- Identity verification
+- Behavioral analysis
+- Continuous learning capabilities
+- Professional dashboard
+- Production-ready code
+
+The system successfully detects cheating attempts including:
+- Multiple people
+- Wrong person
+- Looking away
+- Talking/lip movement
+- Face not visible
+
+All incidents are logged, displayed in a beautiful dashboard, and the system improves over time through machine learning.
 
 ---
 
@@ -23,8 +39,7 @@ Hackathon Project/
 
 ## 🚀 Main Features
 
-### 1. **opencv.py** - Primary Proctoring System
-**Status:** ✅ Fully Working
+### 1. Primary Proctoring System
 
 **Features:**
 - ✅ 3-second initial face scan for identity registration
@@ -370,50 +385,7 @@ video_capture = cv2.VideoCapture(0)  # Try 0, 1, 2...
 - **Features Extracted:** 100+
 - **Accuracy:** Up to 95%
 
----
 
-## ✅ Project Status
-
-### **Completed:**
-✅ Face detection and tracking
-✅ Identity verification
-✅ Multi-face detection
-✅ Eye and lip detection
-✅ Alert system with throttling
-✅ Premium dashboard UI
-✅ Real-time incident logging
-✅ Adaptive ML system
-✅ Continuous learning
-✅ Model persistence
-
-### **Working Features:**
-✅ Camera feed with overlays
-✅ Split-screen layout
-✅ Incident table with stats
-✅ Alert cooldown system
-✅ Anomaly detection
-✅ Auto-training
-
----
-
-## 🎉 Summary
-
-**DRISHTI** is a complete AI-powered proctoring system with:
-- Real-time face detection and tracking
-- Identity verification
-- Behavioral analysis
-- Continuous learning capabilities
-- Professional dashboard
-- Production-ready code
-
-The system successfully detects cheating attempts including:
-- Multiple people
-- Wrong person
-- Looking away
-- Talking/lip movement
-- Face not visible
-
-All incidents are logged, displayed in a beautiful dashboard, and the system improves over time through machine learning.
 
 ---
 

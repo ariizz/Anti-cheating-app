@@ -33,21 +33,26 @@ async def receive_alert(incident: IncidentModel):
 
 @app.get("/incidents")
 def get_incidents():
-    """Return all logged incidents as a JSON list."""
+    """Return the most recent 100 incidents as a JSON list."""
     if not LOG_FILE.exists():
         return []
 
     incidents = []
-    with LOG_FILE.open("r", encoding="utf-8") as f:
-        for line in f:
-            line = line.strip()
-            if not line:
-                continue
-            try:
-                incidents.append(json.loads(line))
-            except json.JSONDecodeError:
-                # Skip any corrupted lines
-                continue
+    try:
+        # Use a more efficient way to get last N lines for performance
+        with LOG_FILE.open("r", encoding="utf-8") as f:
+            # For small files, this is fast. For very large files, we should use seek
+            lines = f.readlines()
+            # Only process the last 100 lines to keep dashboard fast
+            recent_lines = lines[-100:] if len(lines) > 100 else lines
+            for line in recent_lines:
+                line = line.strip()
+                if not line: continue
+                try:
+                    incidents.append(json.loads(line))
+                except: continue
+    except Exception as e:
+        print(f"Error reading incidents: {e}")
     return incidents
 
 

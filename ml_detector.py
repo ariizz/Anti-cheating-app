@@ -10,6 +10,19 @@ Uses deep learning models for superior accuracy in:
 import cv2
 import numpy as np
 import mediapipe as mp
+# Robust import for mediapipe solutions
+try:
+    import mediapipe.solutions.face_mesh as mp_face_mesh
+    import mediapipe.solutions.face_detection as mp_face_detection
+except (ImportError, AttributeError):
+    try:
+        import mediapipe.python.solutions.face_mesh as mp_face_mesh
+        import mediapipe.python.solutions.face_detection as mp_face_detection
+    except (ImportError, AttributeError):
+        # Fallback to direct solutions import if possible
+        from mediapipe.python.solutions import face_mesh as mp_face_mesh
+        from mediapipe.python.solutions import face_detection as mp_face_detection
+
 from scipy.spatial import distance as dist
 import time
 
@@ -18,7 +31,7 @@ class MLDetector:
     
     def __init__(self):
         # Initialize MediaPipe Face Mesh for high-precision facial landmarks
-        self.mp_face_mesh = mp.solutions.face_mesh
+        self.mp_face_mesh = mp_face_mesh
         self.face_mesh = self.mp_face_mesh.FaceMesh(
             max_num_faces=2,
             refine_landmarks=True,
@@ -27,7 +40,7 @@ class MLDetector:
         )
         
         # Initialize MediaPipe Face Detection
-        self.mp_face_detection = mp.solutions.face_detection
+        self.mp_face_detection = mp_face_detection
         self.face_detection = self.mp_face_detection.FaceDetection(
             model_selection=1,  # Full range model
             min_detection_confidence=0.7
@@ -39,10 +52,10 @@ class MLDetector:
         
         # Thresholds
         self.GAZE_THRESHOLD = 0.15
-        self.HEAD_POSE_THRESHOLD = 20  # degrees
+        self.HEAD_POSE_THRESHOLD = 60  # degrees - very low sensitivity (only extreme turns)
         self.FACE_SIMILARITY_THRESHOLD = 0.85
         self.EAR_THRESHOLD = 0.25  # Eye Aspect Ratio for blink/closed eyes
-        self.MAR_THRESHOLD = 0.6   # Mouth Aspect Ratio for talking
+        self.MAR_THRESHOLD = 0.28   # Lowered threshold for higher sensitivity to subtle talking
         
     def scan_reference_face(self, frame):
         """
@@ -62,10 +75,15 @@ class MLDetector:
         return False
     
     def _extract_face_encoding(self, landmarks, frame_shape):
-        """Extract face encoding from landmarks"""
+        """Extract face encoding from landmarks (Higher Precision)"""
         h, w = frame_shape[:2]
-        # Use key facial landmarks as encoding
-        key_points = [1, 33, 61, 199, 263, 291]  # Nose, eyes, mouth corners
+        # Use more facial landmarks for a more unique encoding
+        # Key points around eyes, nose, mouth and face contour
+        key_points = [
+            1, 33, 263, 61, 291, 199, # Center points
+            10, 152, 234, 454,        # Top, bottom, left, right
+            133, 362, 168, 6, 197     # Refined nose/eye points
+        ]
         encoding = []
         for idx in key_points:
             lm = landmarks.landmark[idx]
@@ -164,15 +182,16 @@ class MLDetector:
             right_deviation = abs(right_iris_center[0] - right_eye_center[0])
             avg_deviation = (left_deviation + right_deviation) / 2
             
-            is_forward = avg_deviation < self.GAZE_THRESHOLD
-            
-            # Determine direction
-            if left_iris_center[0] < left_eye_center[0] - self.GAZE_THRESHOLD:
+            # Determine direction with slight hysteresis for smoothing
+            if left_iris_center[0] < left_eye_center[0] - (self.GAZE_THRESHOLD * 1.5):
                 direction = "LEFT"
-            elif left_iris_center[0] > left_eye_center[0] + self.GAZE_THRESHOLD:
+            elif left_iris_center[0] > left_eye_center[0] + (self.GAZE_THRESHOLD * 1.5):
                 direction = "RIGHT"
             else:
                 direction = "FORWARD"
+            
+            # Use clarified direction for forward check
+            is_forward = direction == "FORWARD"
             
             confidence = 1.0 - min(avg_deviation / self.GAZE_THRESHOLD, 1.0)
             return is_forward, direction, confidence
@@ -256,27 +275,43 @@ class MLDetector:
     def detect_eye_closure(self, frame):
         """
         Detect if eyes are closed using Eye Aspect Ratio (EAR)
-        Returns: (eyes_open, ear_score)
+        Returns: (eyes_open, ear_score, left_eye_box, right_eye_box)
         """
         rgb_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
         results = self.face_mesh.process(rgb_frame)
         
         if results.multi_face_landmarks:
             landmarks = results.multi_face_landmarks[0]
+            h, w = frame.shape[:2]
             
             # Left eye landmarks
-            left_eye = [landmarks.landmark[i] for i in [33, 160, 158, 133, 153, 144]]
+            left_indices = [33, 160, 158, 133, 153, 144]
+            left_eye = [landmarks.landmark[i] for i in left_indices]
             # Right eye landmarks
-            right_eye = [landmarks.landmark[i] for i in [362, 385, 387, 263, 373, 380]]
+            right_indices = [362, 385, 387, 263, 373, 380]
+            right_eye = [landmarks.landmark[i] for i in right_indices]
+            
+            def get_box(eye_lms):
+                xs = [lm.x * w for lm in eye_lms]
+                ys = [lm.y * h for lm in eye_lms]
+                # Add some padding to the eye box
+                x_min, x_max = min(xs), max(xs)
+                y_min, y_max = min(ys), max(ys)
+                pad_w = (x_max - x_min) * 0.2
+                pad_h = (y_max - y_min) * 0.5
+                return (int(x_min - pad_w), int(y_min - pad_h), int((x_max - x_min) + 2*pad_w), int((y_max - y_min) + 2*pad_h))
+            
+            left_box = get_box(left_eye)
+            right_box = get_box(right_eye)
             
             left_ear = self._calculate_ear(left_eye)
             right_ear = self._calculate_ear(right_eye)
             avg_ear = (left_ear + right_ear) / 2
             
             eyes_open = avg_ear > self.EAR_THRESHOLD
-            return eyes_open, avg_ear
+            return eyes_open, avg_ear, left_box, right_box
         
-        return True, 1.0
+        return True, 1.0, None, None
     
     def _calculate_ear(self, eye_landmarks):
         """Calculate Eye Aspect Ratio"""
@@ -303,31 +338,29 @@ class MLDetector:
         if results.multi_face_landmarks:
             landmarks = results.multi_face_landmarks[0]
             
-            # Mouth landmarks
-            mouth = [landmarks.landmark[i] for i in [61, 146, 91, 181, 84, 17, 314, 405, 321, 375, 291, 308]]
+            # Key Mouth landmarks for robust MAR:
+            # 61, 291: Corners (Horizontal)
+            # 13, 14: Upper/Lower Lip Center (Vertical)
+            p61 = landmarks.landmark[61]
+            p291 = landmarks.landmark[291]
+            p13 = landmarks.landmark[13]
+            p14 = landmarks.landmark[14]
             
-            mar = self._calculate_mar(mouth)
+            # Calculate MAR: Vertical distance / Horizontal distance
+            vertical_dist = dist.euclidean([p13.x, p13.y], [p14.x, p14.y])
+            horizontal_dist = dist.euclidean([p61.x, p61.y], [p291.x, p291.y])
+            
+            if horizontal_dist == 0: return False, 0.0
+            
+            mar = vertical_dist / horizontal_dist
+            
+            # Sensitivity threshold: 
+            # Closed mouth is usually < 0.1, Talking is > 0.3
             is_talking = mar > self.MAR_THRESHOLD
             
             return is_talking, mar
         
         return False, 0.0
-    
-    def _calculate_mar(self, mouth_landmarks):
-        """Calculate Mouth Aspect Ratio"""
-        points = np.array([[lm.x, lm.y] for lm in mouth_landmarks])
-        
-        # Vertical distances
-        A = dist.euclidean(points[1], points[7])
-        B = dist.euclidean(points[2], points[6])
-        C = dist.euclidean(points[3], points[5])
-        
-        # Horizontal distance
-        D = dist.euclidean(points[0], points[4])
-        
-        # MAR formula
-        mar = (A + B + C) / (2.0 * D)
-        return mar
     
     def get_comprehensive_analysis(self, frame):
         """
@@ -348,6 +381,7 @@ class MLDetector:
             "head_pose": (0, 0, 0),
             "eyes_open": True,
             "eye_score": 1.0,
+            "eye_locations": [],
             "is_talking": False,
             "mouth_score": 0.0,
             "alerts": []
@@ -387,9 +421,11 @@ class MLDetector:
             analysis["alerts"].append(("HEAD_TURNED", f"Head pose: pitch={pitch:.1f}°, yaw={yaw:.1f}°"))
         
         # Eye closure
-        eyes_open, eye_score = self.detect_eye_closure(frame)
+        eyes_open, eye_score, l_box, r_box = self.detect_eye_closure(frame)
         analysis["eyes_open"] = eyes_open
         analysis["eye_score"] = eye_score
+        if l_box and r_box:
+            analysis["eye_locations"] = [l_box, r_box]
         
         if not eyes_open:
             analysis["alerts"].append(("EYES_CLOSED", f"Eye aspect ratio: {eye_score:.2f}"))

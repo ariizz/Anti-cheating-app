@@ -33,7 +33,7 @@ FACE_CENTER_THRESHOLD = 0.18  # 18% deviation from center is acceptable
 LOOK_AWAY_DURATION = 2.0       # seconds before alert triggers
 MIN_FACE_SIZE = 80            # minimum face size for reliable detection
 EYE_DETECTION_RATIO = 0.5    # eyes should be in upper 45% of face ROI
-FACE_ANGLE_THRESHOLD = 12     # degrees - more precise threshold
+FACE_ANGLE_THRESHOLD = 60     # degrees - very low sensitivity (only extreme turns)
 EYE_DETECTION_CONFIDENCE = 2  # minimum number of eyes to detect for normal state
 
 # Temporal smoothing parameters
@@ -84,7 +84,7 @@ def send_alert_async(alert_type, reason):
                 data=data, 
                 headers={'Content-Type': 'application/json'}
             )
-            with urllib.request.urlopen(req, timeout=1) as response:
+            with urllib.request.urlopen(req, timeout=3) as response:
                 pass # Success
         except Exception as e:
             # Silently fail if dashboard is down to keep CV running
@@ -131,7 +131,7 @@ session_stats = {
 
 # Initialize ML Detector if available
 ml_detector = None
-use_ml_detection = False
+use_ml_detection = True
 adaptive_proctor = None
 
 if ML_AVAILABLE:
@@ -307,6 +307,36 @@ def smooth_angle(angle):
     recent_angles = list(face_angle_history)[-SMOOTHING_WINDOW:]
     return np.median(recent_angles)
 
+def extract_face_signature(face_roi):
+    """
+    Extract a robust spatial-color signature from a face ROI.
+    Uses a 2x2 grid of Hue-Saturation histograms to capture spatial distribution.
+    """
+    try:
+        h, w = face_roi.shape[:2]
+        if h < 20 or w < 20: return np.zeros(512, dtype=np.float32)
+        
+        hsv = cv2.cvtColor(face_roi, cv2.COLOR_BGR2HSV)
+        
+        # Split into 4 quadrants to capture spatial structure
+        quads = [
+            hsv[0:h//2, 0:w//2], hsv[0:h//2, w//2:w],
+            hsv[h//2:h, 0:w//2], hsv[h//2:h, w//2:w]
+        ]
+        
+        sig = []
+        for q in quads:
+            # Mask for skin-like colors
+            mask = cv2.inRange(q, np.array([0, 30, 40]), np.array([25, 255, 255]))
+            # 16 bins for Hue, 8 for Saturation
+            hist = cv2.calcHist([q], [0, 1], mask, [16, 8], [0, 180, 0, 256])
+            cv2.normalize(hist, hist, 0, 1, cv2.NORM_L1)
+            sig.append(hist.flatten())
+            
+        return np.concatenate(sig).astype(np.float32)
+    except Exception as e:
+        return np.zeros(512, dtype=np.float32)
+
 # Global state for scanning (needs to persist across loop iterations if we werent using a loop, but we are)
 scan_complete = False
 scan_start_time = None
@@ -381,17 +411,13 @@ while True:
                         scan_start_time = time.time()
                         scanning_frames = 0
             else:
-                # Fallback: Histogram-based scanning
-                roi_color = frame[y:y+h, x:x+w]
-                hsv_roi = cv2.cvtColor(roi_color, cv2.COLOR_BGR2HSV)
-                mask = cv2.inRange(hsv_roi, np.array((0., 60.,32.)), np.array((180.,255.,255.)))
-                hist = cv2.calcHist([hsv_roi], [0], mask, [180], [0, 180])
-                cv2.normalize(hist, hist, 0, 255, cv2.NORM_MINMAX)
+                # Fallback: Spatial Histogram-based scanning
+                hist = extract_face_signature(frame[y:y+h, x:x+w])
                 
                 if reference_hist is None:
                     reference_hist = hist
                 else:
-                    cv2.accumulateWeighted(hist, reference_hist, 0.1)
+                    reference_hist = 0.9 * reference_hist + 0.1 * hist
                     
                 scanning_frames += 1
                 
@@ -400,11 +426,12 @@ while True:
                     print("Scan Complete")
         else:
             cv2.putText(frame, "Please look at camera (1 face)", (50, 100), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 0, 255), 2)
-            # Reset if face lost during scan
-            scan_start_time = time.time()
+            # Reset if face lost during scan - MUST set to None so timer restarts correctly
+            scan_start_time = None
             scanning_frames = 0
+            reference_hist = None # Also clear reference to start fresh
             
-        cv2.imshow('DRISHTI', frame)
+        cv2.imshow('DRISHTI - AI Proctoring System', frame)
         if cv2.waitKey(1) & 0xFF == ord('q'):
             break
         continue
@@ -412,7 +439,7 @@ while True:
     # --- MONITORING PHASE ---
     
     # Show "Scan Complete" briefly
-    if time.time() - scan_start_time < 3.0:
+    if scan_start_time and time.time() - scan_start_time < 3.0:
         mode_text = "ML MODE" if use_ml_detection else "STANDARD MODE"
         cv2.putText(frame, f"SCAN COMPLETE - {mode_text} ACTIVE", (50, 50), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 0), 2)
 
@@ -485,10 +512,7 @@ while True:
                 if not analysis["gaze_forward"]:
                     distraction_factors.append(("Looking away", 0.8))
                 
-                # Head pose
-                if not analysis["head_centered"]:
-                    pitch, yaw, roll = analysis["head_pose"]
-                    distraction_factors.append(("Head turned", 0.7))
+                # Head pose detection removed as per request
                 
                 # Eye closure
                 if not analysis["eyes_open"]:
@@ -508,7 +532,8 @@ while True:
                     if look_away_start is None:
                         look_away_start = time.time()
                     
-                    threshold = 0.1 if distraction_reason == "Lip Motion Detected" else LOOK_AWAY_DURATION
+                    # Require 0.4 seconds of sustained talking to trigger alert (more responsive)
+                    threshold = 0.4 if distraction_reason == "Lip Motion Detected" else LOOK_AWAY_DURATION
                     
                     if time.time() - look_away_start >= threshold:
                         if not alert_active:
@@ -516,7 +541,7 @@ while True:
                             alert_start_time = time.time()
                             
                             a_type = "LOOKING_AWAY"
-                            if distraction_reason == "Lip movement Detected":
+                            if distraction_reason == "Lip Motion Detected":
                                 a_type = "LIP_MOVEMENT"
                             elif distraction_reason == "Eyes closed":
                                 a_type = "FACE_NOT_VISIBLE"
@@ -524,21 +549,33 @@ while True:
                             send_alert_async(a_type, distraction_reason)
                 else:
                     look_away_start = None
-                    if alert_active and (time.time() - alert_start_time) > 0.5:
-                        alert_active = False
+                    alert_active = False # Instant reset for better responsiveness
                 
                 # Draw visualization
                 color = (0, 0, 255) if alert_active else (0, 255, 0)
                 cv2.rectangle(frame, (x, y), (x+w, y+h), color, 3)
                 
-                # Show ML confidence scores
-                cv2.putText(frame, f"ID: {analysis['identity_confidence']:.2f}", (x, y-30), 
+                # Draw eye boxes
+                for (ex, ey, ew, eh) in analysis.get("eye_locations", []):
+                    cv2.rectangle(frame, (ex, ey), (ex+ew, ey+eh), (255, 0, 0), 2)
+                
+                # Show ML status HUD
+                cv2.putText(frame, f"ID: {analysis['identity_confidence']:.2f}", (x, y-45), 
                            cv2.FONT_HERSHEY_SIMPLEX, 0.5, (100, 200, 255), 1)
-                cv2.putText(frame, f"Gaze: {analysis['gaze_direction']}", (x, y-15), 
+                cv2.putText(frame, f"Gaze: {analysis['gaze_direction']}", (x, y-30), 
                            cv2.FONT_HERSHEY_SIMPLEX, 0.5, (100, 200, 255), 1)
                 
+                # New Eye/Mouth HUD
+                eye_color = (130, 255, 130) if analysis['eyes_open'] else (100, 100, 255)
+                mouth_color = (255, 150, 150) if analysis['is_talking'] else (200, 200, 200)
+                
+                cv2.putText(frame, f"Eyes: {'Open' if analysis['eyes_open'] else 'CLOSED'}", (x, y-15), 
+                           cv2.FONT_HERSHEY_SIMPLEX, 0.5, eye_color, 1)
+                cv2.putText(frame, f"Talking: {'YES' if analysis['is_talking'] else 'No'}", (x, y-5), 
+                           cv2.FONT_HERSHEY_SIMPLEX, 0.5, mouth_color, 1)
+                
                 if alert_active:
-                    cv2.putText(frame, f"ALERT: {distraction_reason}", (x, y-45), 
+                    cv2.putText(frame, f"ALERT: {distraction_reason}", (x, y-60), 
                                cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 0, 255), 2)
         
         # No face detected
@@ -597,18 +634,14 @@ while True:
         elif len(faces) == 1:
             x, y, w, h = faces[0]
             
-            # Identity match using Histogram comparison
-            roi_color = frame[y:y+h, x:x+w]
-            hsv_roi = cv2.cvtColor(roi_color, cv2.COLOR_BGR2HSV)
-            mask = cv2.inRange(hsv_roi, np.array((0., 60.,32.)), np.array((180.,255.,255.)))
-            hist = cv2.calcHist([hsv_roi], [0], mask, [180], [0, 180])
-            cv2.normalize(hist, hist, 0, 255, cv2.NORM_MINMAX)
+            # Identity match using Spatial Signature comparison
+            hist = extract_face_signature(frame[y:y+h, x:x+w])
             
             # Compare with reference behavior
             match_score = cv2.compareHist(reference_hist, hist, cv2.HISTCMP_CORREL)
             
-            # Identity Threshold
-            IDENTITY_THRESHOLD = 0.65
+            # Identity Threshold - High precision grid matching
+            IDENTITY_THRESHOLD = 0.75
             
             # Visualize Score for debugging
             score_color = (0, 255, 0) if match_score >= IDENTITY_THRESHOLD else (0, 0, 255)
@@ -680,8 +713,7 @@ while True:
                     distraction_factors = []
                     if not is_centered:
                         distraction_factors.append(("Face off-center", 0.6))
-                    if abs(face_angle) > FACE_ANGLE_THRESHOLD:
-                        distraction_factors.append(("Face turned", 0.8))
+                    # Face turn detection removed as per request
                     if not eyes_detected:
                         distraction_factors.append(("Eyes not visible", 0.5))
                     if not eyes_forward and len(eyes) >= 2:
@@ -710,8 +742,8 @@ while True:
                         if look_away_start is None:
                             look_away_start = time.time()
                         
-                        # Custom threshold for lips
-                        threshold = 1.0 if distraction_reason == "Lip Motion Detected" else LOOK_AWAY_DURATION
+                        # Custom threshold for lips (Synced to 0.4s)
+                        threshold = 0.4 if distraction_reason == "Lip Motion Detected" else LOOK_AWAY_DURATION
                         
                         if time.time() - look_away_start >= threshold:
                             if not alert_active:
@@ -721,8 +753,7 @@ while True:
                                 send_alert_async(type_, distraction_reason)
                     else:
                         look_away_start = None
-                        if alert_active and (time.time() - alert_start_time) > 0.5:
-                             alert_active = False
+                        alert_active = False # Instant reset for better responsiveness
 
                     # Visuals
                     color = (0, 0, 255) if alert_active else (0, 255, 0)
